@@ -1,0 +1,37 @@
+{
+    "item.mtlmod.poutine": "Poutine",
+    "item.mtlmod.bagel": "Montreal Bagel",
+    "item.mtlmod.smoked_meat": "Smoked Meat Sandwich",
+    "item.mtlmod.cafe": "Café",
+    "item.mtlmod.steamie": "Steamie",
+    "item.mtlmod.orange_cone": "Orange Cone",
+    "item.mtlmod.metro_ticket": "Metro Ticket",
+    "item.mtlmod.opus_card": "OPUS Card",
+    "item.mtlmod.tam_tam_drum": "Tam-Tam Drum",
+    "item.mtlmod.habs_jersey": "Habs Jersey",
+    "item.mtlmod.textbook": "McGill Textbook",
+    "item.mtlmod.gerts_token": "Gerts Pitcher Token",
+    "item.mtlmod.arcade_fire_vinyl": "Funeral (Vinyl)",
+    "item.mtlmod.quest_journal": "Quest Journal",
+    
+    "itemGroup.mtlmod": "MTL Memories",
+    
+    "quest.mtlmod.frosh_arrival": "Welcome to Montreal",
+    "quest.mtlmod.frosh_first_poutine": "Late Night Discovery",
+    "quest.mtlmod.frosh_gerts": "Gerts Night",
+    "quest.mtlmod.academic_textbooks": "The Bookstore Heist",
+    "quest.mtlmod.academic_allnighter": "The McLennan All-Nighter",
+    "quest.mtlmod.mtl_bagel_wars": "The Great Bagel Debate",
+    "quest.mtlmod.mtl_tam_tams": "Sunday at the Tam-Tams",
+    "quest.mtlmod.mtl_construction": "Orange Cone Season",
+    "quest.mtlmod.mtl_smoked_meat": "The Schwartz's Experience",
+    "quest.mtlmod.music_arcade_fire": "Funeral",
+    "quest.mtlmod.winter_first": "The First Real Winter",
+    "quest.mtlmod.winter_metro": "Underground City",
+    
+    "storyline.mtlmod.frosh": "Frosh Week",
+    "storyline.mtlmod.academic": "Academic Life",
+    "storyline.mtlmod.montreal": "Montreal Life",
+    "storyline.mtlmod.music": "The Music Scene",
+    "storyline.mtlmod.winter": "Winter Survival"
+}

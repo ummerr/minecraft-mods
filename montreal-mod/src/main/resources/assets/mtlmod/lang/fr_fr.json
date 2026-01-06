@@ -1,0 +1,31 @@
+{
+    "item.mtlmod.poutine": "Poutine",
+    "item.mtlmod.bagel": "Bagel Montréalais",
+    "item.mtlmod.smoked_meat": "Sandwich au Smoked Meat",
+    "item.mtlmod.cafe": "Café",
+    "item.mtlmod.steamie": "Steamie",
+    "item.mtlmod.orange_cone": "Cône Orange",
+    "item.mtlmod.metro_ticket": "Billet de Métro",
+    "item.mtlmod.opus_card": "Carte OPUS",
+    "item.mtlmod.tam_tam_drum": "Tambour Tam-Tam",
+    "item.mtlmod.habs_jersey": "Chandail des Canadiens",
+    "item.mtlmod.textbook": "Manuel Scolaire McGill",
+    "item.mtlmod.gerts_token": "Jeton de Gerts",
+    "item.mtlmod.arcade_fire_vinyl": "Funeral (Vinyle)",
+    "item.mtlmod.quest_journal": "Journal de Quêtes",
+    
+    "itemGroup.mtlmod": "Souvenirs de MTL",
+    
+    "quest.mtlmod.frosh_arrival": "Bienvenue à Montréal",
+    "quest.mtlmod.frosh_first_poutine": "Découverte Nocturne",
+    "quest.mtlmod.frosh_gerts": "Soirée Gerts",
+    "quest.mtlmod.academic_textbooks": "Le Vol de la Librairie",
+    "quest.mtlmod.academic_allnighter": "Nuit Blanche au McLennan",
+    "quest.mtlmod.mtl_bagel_wars": "La Grande Guerre des Bagels",
+    "quest.mtlmod.mtl_tam_tams": "Dimanche aux Tam-Tams",
+    "quest.mtlmod.mtl_construction": "Saison des Cônes Orange",
+    "quest.mtlmod.mtl_smoked_meat": "L'Expérience Schwartz's",
+    "quest.mtlmod.music_arcade_fire": "Funeral",
+    "quest.mtlmod.winter_first": "Le Premier Vrai Hiver",
+    "quest.mtlmod.winter_metro": "Ville Souterraine"
+}
