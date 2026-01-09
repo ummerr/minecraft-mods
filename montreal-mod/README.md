@@ -118,12 +118,24 @@ registerQuest(new Quest(
 .addReward(new Quest.XpReward(100)));
 ```
 
-## Adding Custom Items
+## Development Documentation
+
+**Want to add items, assets, or quests?** See [DEVELOPMENT.md](DEVELOPMENT.md) for the complete guide on:
+- How the mod architecture works
+- Step-by-step guide to adding new items
+- Creating textures and models
+- Adding custom item behaviors
+- Quest system explained
+- Localization (adding languages)
+
+### Quick Start: Adding Custom Items
 
 1. Add the item in `ModItems.java`
 2. Add the name in `lang/en_us.json`
 3. Add a texture in `textures/item/` (16x16 PNG)
 4. Add a model in `models/item/` (or use the default)
+
+**For detailed instructions, see [DEVELOPMENT.md](DEVELOPMENT.md)**
 
 ## Next Steps / Ideas
 
