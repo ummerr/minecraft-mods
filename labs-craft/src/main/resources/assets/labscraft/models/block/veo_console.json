@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "bottom": "labscraft:block/veo_console",
+    "side": "labscraft:block/veo_console",
+    "top": "labscraft:block/veo_console_top"
+  }
+}

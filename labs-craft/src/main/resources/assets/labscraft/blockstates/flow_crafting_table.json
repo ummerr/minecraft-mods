@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "labscraft:block/flow_crafting_table"
+    }
+  }
+}

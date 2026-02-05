@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "labscraft",
+  "version": "${version}",
+  "name": "LabsCraft",
+  "description": "A satirical Google Labs RPG mod for Minecraft",
+  "authors": [
+    "LabsCraft Team"
+  ],
+  "contact": {
+    "homepage": "https://github.com/yourusername/labscraft",
+    "sources": "https://github.com/yourusername/labscraft"
+  },
+  "license": "MIT",
+  "icon": "assets/labscraft/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.labscraft.LabsCraft"
+    ],
+    "client": [
+      "com.labscraft.LabsCraftClient"
+    ]
+  },
+  "mixins": [
+    "labscraft.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.4",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "another-mod": "*"
+  }
+}

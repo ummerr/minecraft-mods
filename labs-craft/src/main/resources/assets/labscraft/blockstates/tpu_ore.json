@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "labscraft:block/tpu_ore"
+    }
+  }
+}

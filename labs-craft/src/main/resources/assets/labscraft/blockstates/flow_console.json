@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "labscraft:block/flow_console" }
+  }
+}
