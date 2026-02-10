@@ -2,6 +2,7 @@ package com.labscraft;
 
 import com.labscraft.block.ModBlocks;
 import com.labscraft.block.entity.ModBlockEntities;
+import com.labscraft.command.ModCommands;
 import com.labscraft.entity.ModEntities;
 import com.labscraft.item.ModItems;
 import com.labscraft.network.FlowConsolePackets;
@@ -30,6 +31,7 @@ public class LabsCraft implements ModInitializer {
         VeoConsolePackets.registerServer();
         FlowCraftingTablePackets.registerServer();
         ModWorldGeneration.registerWorldGeneration();
+        ModCommands.registerCommands();
         LOGGER.info("LabsCraft initialized");
     }
 }
