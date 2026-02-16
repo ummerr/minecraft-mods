@@ -6,6 +6,8 @@ import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.world.PersistentState;
@@ -83,13 +85,15 @@ public class QuestManager extends PersistentState {
             playerStages.put(player.getUuid(), stage);
             markDirty();
 
-            // Notify player of quest update
+            // Notify player of quest update with sound
             player.sendMessage(
                 Text.literal("[Quest Updated] ")
                     .formatted(Formatting.GOLD)
                     .append(Text.literal(stage.getDisplayName()).formatted(Formatting.YELLOW)),
                 false
             );
+            player.getServerWorld().playSound(null, player.getBlockPos(),
+                SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundCategory.PLAYERS, 0.7f, 1.0f);
 
             LabsCraft.LOGGER.info("Player {} quest stage updated to {}", player.getName().getString(), stage.name());
         }

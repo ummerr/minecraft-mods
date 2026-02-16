@@ -14,6 +14,8 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
@@ -72,6 +74,7 @@ public class JoshWoodwardEntity extends PathAwareEntity {
     private void sayIdleDialogue(PlayerEntity player) {
         String dialogue = IDLE_DIALOGUES[random.nextInt(IDLE_DIALOGUES.length)];
         player.sendMessage(Text.literal("<Josh Woodward> " + dialogue), false);
+        this.getWorld().playSound(null, this.getBlockPos(), SoundEvents.ENTITY_VILLAGER_TRADE, SoundCategory.NEUTRAL, 0.6f, 1.0f);
     }
 
     @Override
@@ -83,17 +86,20 @@ public class JoshWoodwardEntity extends PathAwareEntity {
 
             String dialogue = getDialogueForStage(stage);
             player.sendMessage(Text.literal("<Josh Woodward> " + dialogue), false);
+            serverWorld.playSound(null, this.getBlockPos(), SoundEvents.ENTITY_VILLAGER_TRADE, SoundCategory.NEUTRAL, 0.8f, 1.1f);
 
             // Give TPU rewards and advance quest based on stage
             if (stage == QuestStage.NOT_STARTED) {
                 // Welcome gift: 5 TPUs to build a Nano Banana Console
                 giveTPUs(serverPlayer, 5);
                 player.sendMessage(Text.literal("<Josh Woodward> Here's 5 TPUs to get you started. Use the Flow Crafting Table to build a console."), false);
+                serverWorld.playSound(null, player.getBlockPos(), SoundEvents.ENTITY_ITEM_PICKUP, SoundCategory.PLAYERS, 1.0f, 0.8f);
                 questManager.advanceStage(serverPlayer);
             } else if (stage == QuestStage.FIRST_GENERATION) {
                 // Reward for first generation: 5 more TPUs to upgrade to Veo
                 giveTPUs(serverPlayer, 5);
                 player.sendMessage(Text.literal("<Josh Woodward> Great job! Here's 5 more TPUs. You can upgrade to a Veo Console now."), false);
+                serverWorld.playSound(null, player.getBlockPos(), SoundEvents.ENTITY_ITEM_PICKUP, SoundCategory.PLAYERS, 1.0f, 0.8f);
                 questManager.advanceStage(serverPlayer);
             }
 

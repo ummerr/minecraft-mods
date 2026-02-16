@@ -1,0 +1,28 @@
+{
+  "display": {
+    "icon": {
+      "id": "labscraft:tpu"
+    },
+    "title": {
+      "translate": "advancement.labscraft.root.title"
+    },
+    "description": {
+      "translate": "advancement.labscraft.root.description"
+    },
+    "background": "minecraft:textures/block/deepslate.png",
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "has_tpu": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "labscraft:tpu"
+          }
+        ]
+      }
+    }
+  }
+}

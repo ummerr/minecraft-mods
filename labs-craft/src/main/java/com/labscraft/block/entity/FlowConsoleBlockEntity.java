@@ -8,12 +8,15 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.screen.NamedScreenHandlerFactory;
 import net.minecraft.screen.PropertyDelegate;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -80,6 +83,10 @@ public class FlowConsoleBlockEntity extends BlockEntity implements NamedScreenHa
             isGenerating = true;
             generationProgress = 0;
             markDirty();
+
+            if (world instanceof ServerWorld serverWorld) {
+                serverWorld.playSound(null, pos, SoundEvents.BLOCK_BEACON_ACTIVATE, SoundCategory.BLOCKS, 0.7f, 1.2f);
+            }
         }
     }
 
@@ -102,9 +109,16 @@ public class FlowConsoleBlockEntity extends BlockEntity implements NamedScreenHa
         totalGenerations++;
         markDirty();
 
-        // Advance quest on first generation
-        if (world instanceof ServerWorld serverWorld && totalGenerations == 1) {
-            // We'll notify players viewing this screen through the screen handler
+        if (world instanceof ServerWorld serverWorld) {
+            // Completion sound
+            serverWorld.playSound(null, pos, SoundEvents.ENTITY_PLAYER_LEVELUP, SoundCategory.BLOCKS, 0.8f, 1.5f);
+
+            // Blue sparkle particle burst
+            double cx = pos.getX() + 0.5;
+            double cy = pos.getY() + 1.0;
+            double cz = pos.getZ() + 0.5;
+            serverWorld.spawnParticles(ParticleTypes.ENCHANT, cx, cy + 0.5, cz, 15, 0.4, 0.3, 0.4, 0.1);
+            serverWorld.spawnParticles(ParticleTypes.END_ROD, cx, cy, cz, 8, 0.3, 0.5, 0.3, 0.02);
         }
     }
 

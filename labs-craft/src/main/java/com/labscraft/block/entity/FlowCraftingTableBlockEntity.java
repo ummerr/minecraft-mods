@@ -11,9 +11,13 @@ import net.minecraft.inventory.Inventories;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.screen.NamedScreenHandlerFactory;
 import net.minecraft.screen.ScreenHandler;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.math.BlockPos;
@@ -80,6 +84,7 @@ public class FlowCraftingTableBlockEntity extends BlockEntity implements NamedSc
         // Add Nano Banana Console to output
         inventory.set(OUTPUT_SLOT, new ItemStack(ModBlocks.NANO_BANANA_CONSOLE));
         markDirty();
+        playCraftEffects();
     }
 
     public void craftVeo() {
@@ -99,6 +104,17 @@ public class FlowCraftingTableBlockEntity extends BlockEntity implements NamedSc
         // Add Veo Console to output
         inventory.set(OUTPUT_SLOT, new ItemStack(ModBlocks.VEO_CONSOLE));
         markDirty();
+        playCraftEffects();
+    }
+
+    private void playCraftEffects() {
+        if (world instanceof ServerWorld serverWorld) {
+            serverWorld.playSound(null, pos, SoundEvents.BLOCK_SMITHING_TABLE_USE, SoundCategory.BLOCKS, 1.0f, 1.0f);
+            double cx = pos.getX() + 0.5;
+            double cy = pos.getY() + 1.0;
+            double cz = pos.getZ() + 0.5;
+            serverWorld.spawnParticles(ParticleTypes.HAPPY_VILLAGER, cx, cy, cz, 8, 0.3, 0.3, 0.3, 0.0);
+        }
     }
 
     // Inventory implementation

@@ -1,0 +1,21 @@
+{
+  "display": {
+    "icon": {
+      "id": "labscraft:josh_woodward_spawn_egg"
+    },
+    "title": {
+      "translate": "advancement.labscraft.welcome_to_labs.title"
+    },
+    "description": {
+      "translate": "advancement.labscraft.welcome_to_labs.description"
+    },
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "parent": "labscraft:root",
+  "criteria": {
+    "talked_to_josh": {
+      "trigger": "minecraft:impossible"
+    }
+  }
+}

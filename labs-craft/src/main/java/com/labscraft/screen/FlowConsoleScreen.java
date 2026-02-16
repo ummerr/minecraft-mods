@@ -8,11 +8,19 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.MathHelper;
 
 public class FlowConsoleScreen extends HandledScreen<FlowConsoleScreenHandler> {
     private static final Identifier TEXTURE = Identifier.of(LabsCraft.MOD_ID, "textures/gui/flow_console.png");
 
+    private static final int THEME_COLOR = 0xFF4285F4;
+    private static final int THEME_DARK = 0xFF1a1a2e;
+    private static final int THEME_HEADER = 0xFF16213e;
+
     private ButtonWidget generateButton;
+    private boolean wasGenerating = false;
+    private int completionFlashTicks = 0;
+    private long animationTick = 0;
 
     public FlowConsoleScreen(FlowConsoleScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
@@ -43,9 +51,20 @@ public class FlowConsoleScreen extends HandledScreen<FlowConsoleScreenHandler> {
     @Override
     protected void handledScreenTick() {
         super.handledScreenTick();
-        // Disable button while generating
-        generateButton.active = !handler.isGenerating();
-        if (handler.isGenerating()) {
+        animationTick++;
+
+        boolean isGen = handler.isGenerating();
+        if (wasGenerating && !isGen) {
+            completionFlashTicks = 6;
+        }
+        wasGenerating = isGen;
+
+        if (completionFlashTicks > 0) {
+            completionFlashTicks--;
+        }
+
+        generateButton.active = !isGen;
+        if (isGen) {
             generateButton.setMessage(Text.literal("Generating..."));
         } else {
             generateButton.setMessage(Text.literal("Generate Video"));
@@ -58,11 +77,14 @@ public class FlowConsoleScreen extends HandledScreen<FlowConsoleScreenHandler> {
         int y = (this.height - this.backgroundHeight) / 2;
 
         // Draw background
-        context.fill(x, y, x + this.backgroundWidth, y + this.backgroundHeight, 0xFF1a1a2e);
-        context.drawBorder(x, y, this.backgroundWidth, this.backgroundHeight, 0xFF4285F4);
+        context.fill(x, y, x + this.backgroundWidth, y + this.backgroundHeight, THEME_DARK);
+        context.drawBorder(x, y, this.backgroundWidth, this.backgroundHeight, THEME_COLOR);
 
-        // Draw title area
-        context.fill(x + 1, y + 1, x + this.backgroundWidth - 1, y + 20, 0xFF16213e);
+        // Draw title area with subtle gradient effect
+        context.fill(x + 1, y + 1, x + this.backgroundWidth - 1, y + 20, THEME_HEADER);
+
+        // Draw decorative line under title
+        context.fill(x + 10, y + 19, x + this.backgroundWidth - 10, y + 20, THEME_COLOR);
 
         // Draw progress bar background
         int barX = x + 28;
@@ -71,15 +93,30 @@ public class FlowConsoleScreen extends HandledScreen<FlowConsoleScreenHandler> {
         int barHeight = 16;
 
         context.fill(barX, barY, barX + barWidth, barY + barHeight, 0xFF0f0f23);
-        context.drawBorder(barX, barY, barWidth, barHeight, 0xFF4285F4);
+        context.drawBorder(barX, barY, barWidth, barHeight, THEME_COLOR);
 
-        // Draw progress bar fill
+        // Draw progress bar fill with shimmer
         if (handler.isGenerating()) {
             float progress = handler.getGenerationProgressPercent();
             int fillWidth = (int) ((barWidth - 2) * progress);
             if (fillWidth > 0) {
-                context.fill(barX + 1, barY + 1, barX + 1 + fillWidth, barY + barHeight - 1, 0xFF4285F4);
+                context.fill(barX + 1, barY + 1, barX + 1 + fillWidth, barY + barHeight - 1, THEME_COLOR);
+
+                // Shimmer highlight moving across the bar
+                float shimmer = (float) Math.sin((animationTick + delta) * 0.15) * 0.5f + 0.5f;
+                int shimmerX = barX + 1 + (int) (fillWidth * shimmer);
+                int shimmerWidth = Math.min(8, fillWidth);
+                if (shimmerX + shimmerWidth <= barX + 1 + fillWidth) {
+                    context.fill(shimmerX, barY + 1, shimmerX + shimmerWidth, barY + barHeight - 1, 0x40FFFFFF);
+                }
             }
+        }
+
+        // Completion flash overlay
+        if (completionFlashTicks > 0) {
+            int alpha = (int) (completionFlashTicks * 25);
+            context.fill(x + 1, y + 1, x + this.backgroundWidth - 1, y + this.backgroundHeight - 1,
+                (alpha << 24) | 0xFFFFFF);
         }
     }
 
@@ -88,21 +125,28 @@ public class FlowConsoleScreen extends HandledScreen<FlowConsoleScreenHandler> {
         // Draw title centered
         context.drawText(this.textRenderer, this.title, this.titleX, this.titleY, 0xFFFFFF, false);
 
-        // Draw status text
+        // Draw status text with pulse effect when generating
         String statusText;
+        int statusColor;
         if (handler.isGenerating()) {
             int percent = (int) (handler.getGenerationProgressPercent() * 100);
             statusText = "Generating: " + percent + "%";
+            float pulse = (float) Math.sin(animationTick * 0.15) * 0.3f + 0.7f;
+            int brightness = (int) (pulse * 255);
+            statusColor = (brightness << 16) | (brightness << 8) | brightness;
         } else {
             statusText = "Ready to generate";
+            statusColor = 0xCCCCCC;
         }
         int statusX = (this.backgroundWidth - this.textRenderer.getWidth(statusText)) / 2;
-        context.drawText(this.textRenderer, statusText, statusX, 35, 0xCCCCCC, false);
+        context.drawText(this.textRenderer, statusText, statusX, 35, statusColor, false);
 
-        // Draw generation count
-        String countText = "Total generations: " + handler.getTotalGenerations();
+        // Draw generation count with themed color
+        int count = handler.getTotalGenerations();
+        String countText = "Total generations: " + count;
         int countX = (this.backgroundWidth - this.textRenderer.getWidth(countText)) / 2;
-        context.drawText(this.textRenderer, countText, countX, 75, 0x888888, false);
+        int countColor = count > 0 ? 0x6699FF : 0x888888;
+        context.drawText(this.textRenderer, countText, countX, 75, countColor, false);
     }
 
     @Override
