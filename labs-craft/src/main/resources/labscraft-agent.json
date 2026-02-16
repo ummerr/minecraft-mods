@@ -1,0 +1,7 @@
+{
+  "agent_server_url": "http://localhost:3001",
+  "tick_rate": 20,
+  "timeout_ms": 500,
+  "fallback_to_static": true,
+  "debug_logging": false
+}

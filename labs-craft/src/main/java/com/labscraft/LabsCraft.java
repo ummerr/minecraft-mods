@@ -1,5 +1,7 @@
 package com.labscraft;
 
+import com.labscraft.agent.AgentBridge;
+import com.labscraft.agent.AgentConfig;
 import com.labscraft.block.ModBlocks;
 import com.labscraft.block.entity.ModBlockEntities;
 import com.labscraft.command.ModCommands;
@@ -32,6 +34,11 @@ public class LabsCraft implements ModInitializer {
         FlowCraftingTablePackets.registerServer();
         ModWorldGeneration.registerWorldGeneration();
         ModCommands.registerCommands();
+
+        // Initialize agentic NPC system
+        AgentConfig agentConfig = AgentConfig.load();
+        AgentBridge.init(agentConfig);
+
         LOGGER.info("LabsCraft initialized");
     }
 }

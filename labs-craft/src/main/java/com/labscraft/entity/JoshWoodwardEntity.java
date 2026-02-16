@@ -1,5 +1,9 @@
 package com.labscraft.entity;
 
+import com.google.gson.JsonObject;
+import com.labscraft.agent.AgentBridge;
+import com.labscraft.agent.RecentEventsTracker;
+import com.labscraft.agent.WorldStateCollector;
 import com.labscraft.item.ModItems;
 import com.labscraft.quest.QuestManager;
 import com.labscraft.quest.QuestStage;
@@ -20,8 +24,12 @@ import net.minecraft.util.Hand;
 import net.minecraft.world.World;
 
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 public class JoshWoodwardEntity extends PathAwareEntity {
+
+    // ── Static dialogue (fallback when agent server is unavailable) ──
 
     private static final String[] IDLE_DIALOGUES = {
         "Let me check my calendar...",
@@ -38,6 +46,12 @@ public class JoshWoodwardEntity extends PathAwareEntity {
     private int dialogueCooldown = 0;
     private final Random random = new Random();
 
+    // ── Agent bridge state ──
+
+    private int agentTickCounter = 0;
+    private int ticksSinceLastSpoke = 0;
+    private final ConcurrentMap<String, RecentEventsTracker> playerEvents = new ConcurrentHashMap<>();
+
     public JoshWoodwardEntity(EntityType<? extends PathAwareEntity> entityType, World world) {
         super(entityType, world);
         this.setCustomName(Text.literal("Josh Woodward"));
@@ -51,18 +65,66 @@ public class JoshWoodwardEntity extends PathAwareEntity {
         this.goalSelector.add(3, new LookAroundGoal(this));
     }
 
+    public int getTicksSinceLastSpoke() {
+        return ticksSinceLastSpoke;
+    }
+
+    public RecentEventsTracker getEventsTracker(ServerPlayerEntity player) {
+        return playerEvents.computeIfAbsent(
+                player.getUuidAsString(),
+                k -> new RecentEventsTracker()
+        );
+    }
+
+    // ── Tick ──
+
     @Override
     public void tick() {
         super.tick();
+
+        ticksSinceLastSpoke++;
+
+        if (this.getWorld().isClient) return;
 
         if (dialogueCooldown > 0) {
             dialogueCooldown--;
         }
 
-        // Idle dialogue when player is nearby
-        if (!this.getWorld().isClient && dialogueCooldown == 0) {
+        agentTickCounter++;
+
+        AgentBridge bridge = AgentBridge.getInstance();
+
+        // Process pending agent actions for nearby players
+        if (bridge != null) {
+            ServerWorld serverWorld = (ServerWorld) this.getWorld();
+            for (ServerPlayerEntity player : serverWorld.getPlayers()) {
+                if (this.distanceTo(player) < 32.0) {
+                    bridge.getExecutor(player).tick(this, player, serverWorld);
+                }
+            }
+        }
+
+        // Send periodic state updates to agent server
+        if (bridge != null && bridge.isAvailable()) {
+            // Only tick at the configured rate (default: every 20 ticks = 1 second)
+            // But skip if no player is nearby
+            PlayerEntity nearestPlayer = this.getWorld().getClosestPlayer(this, 16.0D);
+            if (nearestPlayer instanceof ServerPlayerEntity serverPlayer && agentTickCounter % 20 == 0) {
+                RecentEventsTracker tracker = getEventsTracker(serverPlayer);
+
+                // Only send to agent if there's something interesting happening
+                if (tracker.hasEvents() || this.distanceTo(serverPlayer) < 6.0) {
+                    JsonObject worldState = WorldStateCollector.collect(serverPlayer, this);
+                    bridge.sendWorldState(serverPlayer, this, worldState, tracker);
+                }
+            }
+            return; // Agent is handling dialogue, skip static path
+        }
+
+        // ── Fallback: static idle dialogue when agent server is down ──
+        if (dialogueCooldown == 0) {
             PlayerEntity nearestPlayer = this.getWorld().getClosestPlayer(this, 5.0D);
-            if (nearestPlayer != null && random.nextInt(100) < 5) { // 5% chance per tick when player nearby
+            if (nearestPlayer != null && random.nextInt(100) < 5) {
                 sayIdleDialogue(nearestPlayer);
                 dialogueCooldown = DIALOGUE_COOLDOWN_TICKS;
             }
@@ -72,40 +134,59 @@ public class JoshWoodwardEntity extends PathAwareEntity {
     private void sayIdleDialogue(PlayerEntity player) {
         String dialogue = IDLE_DIALOGUES[random.nextInt(IDLE_DIALOGUES.length)];
         player.sendMessage(Text.literal("<Josh Woodward> " + dialogue), false);
+        ticksSinceLastSpoke = 0;
     }
+
+    // ── Player interaction (right-click) ──
 
     @Override
     public ActionResult interactMob(PlayerEntity player, Hand hand) {
         if (!this.getWorld().isClient && hand == Hand.MAIN_HAND && player instanceof ServerPlayerEntity serverPlayer) {
-            ServerWorld serverWorld = (ServerWorld) this.getWorld();
-            QuestManager questManager = QuestManager.get(serverWorld);
-            QuestStage stage = questManager.getStage(serverPlayer);
+            AgentBridge bridge = AgentBridge.getInstance();
 
-            String dialogue = getDialogueForStage(stage);
-            player.sendMessage(Text.literal("<Josh Woodward> " + dialogue), false);
+            if (bridge != null && bridge.isAvailable()) {
+                // Agent path: send interaction event to agent server
+                RecentEventsTracker tracker = getEventsTracker(serverPlayer);
+                tracker.addInteraction(serverPlayer.getName().getString());
 
-            // Give TPU rewards and advance quest based on stage
-            if (stage == QuestStage.NOT_STARTED) {
-                // Welcome gift: 5 TPUs to build a Nano Banana Console
-                giveTPUs(serverPlayer, 5);
-                player.sendMessage(Text.literal("<Josh Woodward> Here's 5 TPUs to get you started. Use the Flow Crafting Table to build a console."), false);
-                questManager.advanceStage(serverPlayer);
-            } else if (stage == QuestStage.FIRST_GENERATION) {
-                // Reward for first generation: 5 more TPUs to upgrade to Veo
-                giveTPUs(serverPlayer, 5);
-                player.sendMessage(Text.literal("<Josh Woodward> Great job! Here's 5 more TPUs. You can upgrade to a Veo Console now."), false);
-                questManager.advanceStage(serverPlayer);
+                JsonObject worldState = WorldStateCollector.collect(serverPlayer, this);
+                bridge.sendWorldState(serverPlayer, this, worldState, tracker);
+
+                ticksSinceLastSpoke = 0;
+                return ActionResult.SUCCESS;
             }
 
-            return ActionResult.SUCCESS;
+            // Fallback: static dialogue
+            return handleStaticInteraction(serverPlayer);
         }
         return ActionResult.PASS;
+    }
+
+    private ActionResult handleStaticInteraction(ServerPlayerEntity serverPlayer) {
+        ServerWorld serverWorld = (ServerWorld) this.getWorld();
+        QuestManager questManager = QuestManager.get(serverWorld);
+        QuestStage stage = questManager.getStage(serverPlayer);
+
+        String dialogue = getDialogueForStage(stage);
+        serverPlayer.sendMessage(Text.literal("<Josh Woodward> " + dialogue), false);
+
+        if (stage == QuestStage.NOT_STARTED) {
+            giveTPUs(serverPlayer, 5);
+            serverPlayer.sendMessage(Text.literal("<Josh Woodward> Here's 5 TPUs to get you started. Use the Flow Crafting Table to build a console."), false);
+            questManager.advanceStage(serverPlayer);
+        } else if (stage == QuestStage.FIRST_GENERATION) {
+            giveTPUs(serverPlayer, 5);
+            serverPlayer.sendMessage(Text.literal("<Josh Woodward> Great job! Here's 5 more TPUs. You can upgrade to a Veo Console now."), false);
+            questManager.advanceStage(serverPlayer);
+        }
+
+        ticksSinceLastSpoke = 0;
+        return ActionResult.SUCCESS;
     }
 
     private void giveTPUs(ServerPlayerEntity player, int count) {
         ItemStack tpuStack = new ItemStack(ModItems.TPU, count);
         if (!player.getInventory().insertStack(tpuStack)) {
-            // If inventory is full, drop the items
             ItemEntity itemEntity = new ItemEntity(
                 player.getWorld(),
                 player.getX(), player.getY(), player.getZ(),
@@ -125,9 +206,10 @@ public class JoshWoodwardEntity extends PathAwareEntity {
         };
     }
 
+    // ── Damage handling ──
+
     @Override
     public boolean damage(ServerWorld world, DamageSource source, float amount) {
-        // Josh can't be damaged - he's got meetings to attend
         if (source.getAttacker() instanceof PlayerEntity player) {
             player.sendMessage(Text.literal("<Josh Woodward> Hey, I've got a meeting. Can we not do this?"), false);
         }
