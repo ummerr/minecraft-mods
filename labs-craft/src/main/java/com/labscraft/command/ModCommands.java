@@ -1,10 +1,13 @@
 package com.labscraft.command;
 
 import com.labscraft.LabsCraft;
+import com.labscraft.entity.ModEntities;
 import com.labscraft.world.GoogleplexGenerator;
+import com.labscraft.world.GoogleplexState;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.minecraft.entity.SpawnReason;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.world.ServerWorld;
@@ -39,7 +42,22 @@ public class ModCommands {
         GoogleplexGenerator generator = new GoogleplexGenerator(world, playerPos);
         generator.generate();
 
-        source.sendFeedback(() -> Text.literal("Googleplex complete! Entrance is at " + playerPos), true);
+        // Spawn Josh Woodward in the lobby
+        BlockPos joshPos = generator.getJoshSpawnPos();
+        var josh = ModEntities.JOSH_WOODWARD.create(world, SpawnReason.COMMAND);
+        if (josh != null) {
+            josh.refreshPositionAndAngles(
+                joshPos.getX() + 0.5, joshPos.getY(), joshPos.getZ() + 0.5,
+                180.0f, 0.0f
+            );
+            world.spawnEntity(josh);
+        }
+
+        // Mark as generated so auto-generator won't duplicate
+        GoogleplexState state = GoogleplexState.get(world);
+        state.setGenerated(true);
+
+        source.sendFeedback(() -> Text.literal("Googleplex complete! Josh is in the lobby."), true);
 
         return 1;
     }

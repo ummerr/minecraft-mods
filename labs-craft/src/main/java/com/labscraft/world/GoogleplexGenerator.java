@@ -80,6 +80,9 @@ public class GoogleplexGenerator {
 
         // Add decorations
         addDecorations();
+
+        // Place interactive furniture
+        placeFlowCraftingTable();
     }
 
     private void clearArea() {
@@ -407,7 +410,7 @@ public class GoogleplexGenerator {
         // Top-left area
         buildLab(10, 35, 40, 45, FLOW_COLOR, "Flow");
         // Add Flow Console
-        setBlock(30, 1, 57, ModBlocks.VEO_CONSOLE.getDefaultState());
+        setBlock(30, 1, 57, ModBlocks.FLOW_CONSOLE.getDefaultState());
     }
 
     private void buildGenieLab() {
@@ -543,8 +546,29 @@ public class GoogleplexGenerator {
         }
     }
 
+    private void placeFlowCraftingTable() {
+        // Place in lobby, left of reception desk
+        setBlock(85, 1, 12, ModBlocks.FLOW_CRAFTING_TABLE.getDefaultState());
+    }
+
     private void setBlock(int x, int y, int z, BlockState state) {
         BlockPos pos = origin.add(x, y, z);
         world.setBlockState(pos, state);
+    }
+
+    // --- Accessors for spawn/NPC placement ---
+
+    public BlockPos getOrigin() {
+        return origin;
+    }
+
+    /** Returns the recommended world spawn position (inside lobby entrance). */
+    public BlockPos getLobbySpawnPos() {
+        return origin.add(100, 1, 2);
+    }
+
+    /** Returns the recommended position for Josh Woodward NPC (center of lobby). */
+    public BlockPos getJoshSpawnPos() {
+        return origin.add(100, 1, 10);
     }
 }
