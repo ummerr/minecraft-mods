@@ -25,13 +25,18 @@ export function buildContext(
   // Reverse so oldest first
   rows.reverse();
   for (const row of rows) {
-    messages.push({
-      role: row.role === "josh" ? "assistant" : "user",
-      content:
-        row.role === "josh"
-          ? row.content
-          : `[Player "${state.player.name}"]: ${row.content}`,
-    });
+    if (row.role === "system") {
+      // Conversation summaries — inject as user context
+      messages.push({ role: "user", content: row.content });
+    } else {
+      messages.push({
+        role: row.role === "josh" ? "assistant" : "user",
+        content:
+          row.role === "josh"
+            ? row.content
+            : `[Player "${state.player.name}"]: ${row.content}`,
+      });
+    }
   }
 
   // 2. Load relevant memories
@@ -74,9 +79,22 @@ function formatWorldState(
       `[Player "${state.player.name}" approached and interacted with you (right-clicked)]`
     );
   } else {
-    parts.push(
-      `[System: periodic state update — player is nearby]`
-    );
+    // Check for proactive triggers
+    const dangerEvent = events.find((e) => e.type === "danger_alert");
+    const idleEvent = events.find((e) => e.type === "idle_nudge");
+    if (dangerEvent) {
+      parts.push(
+        `[System: The player is in danger! Low health with hostile mobs nearby. React with concern.]`
+      );
+    } else if (idleEvent) {
+      parts.push(
+        `[System: The player has been idle near their current objective for a while. Give them a nudge or hint.]`
+      );
+    } else {
+      parts.push(
+        `[System: The player is nearby. You can speak proactively if you have something relevant to say, or respond with WAIT.]`
+      );
+    }
   }
 
   // World state context

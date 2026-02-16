@@ -82,12 +82,31 @@ public class ActionExecutor {
     }
 
     private void executeWalkTo(JsonObject action, JoshWoodwardEntity josh) {
+        // Support both explicit coords and "walk to player"
+        if (action.has("target") && action.get("target").getAsString().equals("player")) {
+            // Walk toward the nearest player
+            var world = josh.getWorld();
+            var nearest = world.getClosestPlayer(josh, 32.0);
+            if (nearest != null) {
+                josh.getNavigation().startMovingTo(
+                        nearest.getX(), nearest.getY(), nearest.getZ(), 0.6
+                );
+            }
+            return;
+        }
+
         JsonObject pos = action.getAsJsonObject("position");
+        if (pos == null) return;
+
         double x = pos.get("x").getAsDouble();
         double y = pos.get("y").getAsDouble();
         double z = pos.get("z").getAsDouble();
 
-        josh.getNavigation().startMovingTo(x, y, z, 0.6);
+        // Use pathfinding with a reasonable speed
+        boolean success = josh.getNavigation().startMovingTo(x, y, z, 0.6);
+        if (!success) {
+            LabsCraft.LOGGER.debug("[ActionExecutor] WALK_TO pathfinding failed to {},{},{}", x, y, z);
+        }
     }
 
     private void executeEmote(JsonObject action, JoshWoodwardEntity josh, ServerPlayerEntity player) {

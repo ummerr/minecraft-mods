@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { loadConfig } from "./config";
+import { loadConfig, LLMConfig } from "./config";
 import { initDatabase } from "./database";
 import { WorldState, AgentResponse, AgentAction } from "./types";
 import { LLMProvider } from "./llm/provider";
@@ -9,7 +9,13 @@ import { GeminiProvider } from "./llm/gemini";
 import { OllamaProvider } from "./llm/ollama";
 import { JOSH_SYSTEM_PROMPT } from "./prompts/josh";
 import { buildContext } from "./context";
-import { LLMConfig } from "./config";
+import { shouldRespond, TriggerResult } from "./triggers";
+import {
+  extractMemories,
+  getRecentConversationText,
+  getConversationCount,
+} from "./memory";
+import { summarizeIfNeeded } from "./summarizer";
 
 const config = loadConfig();
 const app = express();
@@ -37,7 +43,6 @@ function createProvider(llmConfig: LLMConfig): LLMProvider {
 }
 
 async function initLLM(): Promise<void> {
-  // Try primary provider
   const providers = [config.llm, ...(config.llm_alternatives ?? [])];
 
   for (const llmConfig of providers) {
@@ -55,7 +60,6 @@ async function initLLM(): Promise<void> {
     }
   }
 
-  // Try Ollama fallback
   const ollama = new OllamaProvider(config.llm_fallback);
   if (await ollama.isAvailable()) {
     llmProvider = ollama;
@@ -70,7 +74,7 @@ async function initLLM(): Promise<void> {
   );
 }
 
-// ── Hardcoded fallback responses (used when no LLM is available) ──
+// ── Hardcoded fallback responses ──
 
 const FALLBACK_RESPONSES: Record<string, AgentAction[]> = {
   NOT_STARTED: [
@@ -121,34 +125,27 @@ const FALLBACK_RESPONSES: Record<string, AgentAction[]> = {
 // ── Parse LLM response into actions ──
 
 function parseLLMResponse(content: string): AgentAction[] {
-  // Strip markdown code fences if present
   let cleaned = content.trim();
   if (cleaned.startsWith("```")) {
-    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+    cleaned = cleaned
+      .replace(/^```(?:json)?\s*\n?/, "")
+      .replace(/\n?```\s*$/, "");
   }
 
   try {
     const parsed = JSON.parse(cleaned);
-
-    // Handle { actions: [...] } wrapper
     const actions: unknown[] = Array.isArray(parsed) ? parsed : parsed.actions;
 
     if (!Array.isArray(actions)) {
-      // If the LLM just returned a string, wrap it as a SAY
       if (typeof parsed === "string" || typeof parsed.text === "string") {
         return [
-          {
-            type: "SAY",
-            text: parsed.text ?? parsed,
-            delay_ticks: 0,
-          },
+          { type: "SAY", text: parsed.text ?? parsed, delay_ticks: 0 },
         ];
       }
       console.warn("[agent-server] LLM returned non-array actions:", content);
       return [];
     }
 
-    // Validate each action has at minimum a type
     return actions
       .filter(
         (a): a is AgentAction =>
@@ -156,18 +153,12 @@ function parseLLMResponse(content: string): AgentAction[] {
       )
       .map((a) => ({
         ...a,
-        delay_ticks: (a as unknown as Record<string, number>).delay_ticks ?? 0,
+        delay_ticks:
+          (a as unknown as Record<string, number>).delay_ticks ?? 0,
       })) as AgentAction[];
   } catch (e) {
-    // LLM returned plain text — wrap as SAY
     console.warn("[agent-server] Failed to parse LLM JSON, wrapping as SAY");
-    return [
-      {
-        type: "SAY",
-        text: cleaned.slice(0, 200),
-        delay_ticks: 0,
-      },
-    ];
+    return [{ type: "SAY", text: cleaned.slice(0, 200), delay_ticks: 0 }];
   }
 }
 
@@ -177,9 +168,7 @@ const callTimestamps: number[] = [];
 
 function isRateLimited(): boolean {
   const now = Date.now();
-  const windowMs = 60_000;
-  // Remove timestamps older than 1 minute
-  while (callTimestamps.length > 0 && callTimestamps[0] < now - windowMs) {
+  while (callTimestamps.length > 0 && callTimestamps[0] < now - 60_000) {
     callTimestamps.shift();
   }
   return callTimestamps.length >= config.behavior.max_llm_calls_per_minute;
@@ -202,12 +191,90 @@ function validateWorldState(body: unknown): body is WorldState {
   );
 }
 
+// ── Log helpers ──
+
+function logPlayerEvent(state: WorldState): void {
+  const playerUuid = state.player.name;
+  const events = state.recent_events ?? [];
+
+  const chatEvent = events.find((e) => e.type === "chat_message");
+  if (chatEvent && typeof chatEvent.text === "string") {
+    db.prepare(
+      "INSERT INTO conversations (player_uuid, role, content, timestamp) VALUES (?, ?, ?, ?)"
+    ).run(playerUuid, "player", chatEvent.text, Date.now());
+  }
+
+  const interactionEvent = events.find((e) => e.type === "interaction");
+  if (interactionEvent) {
+    db.prepare(
+      "INSERT INTO conversations (player_uuid, role, content, timestamp) VALUES (?, ?, ?, ?)"
+    ).run(playerUuid, "player", "[Player interacted with Josh]", Date.now());
+  }
+
+  if (state.quest) {
+    db.prepare(
+      `INSERT INTO quest_state (player_uuid, current_stage, completed_objectives, started_at, last_interaction)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(player_uuid) DO UPDATE SET
+         current_stage = excluded.current_stage,
+         completed_objectives = excluded.completed_objectives,
+         last_interaction = excluded.last_interaction`
+    ).run(
+      playerUuid,
+      state.quest.current_stage,
+      JSON.stringify(state.quest.objectives_completed ?? []),
+      Date.now(),
+      Date.now()
+    );
+  }
+}
+
+function logJoshResponse(playerUuid: string, actions: AgentAction[]): void {
+  const sayAction = actions.find((a) => a.type === "SAY");
+  if (sayAction && sayAction.type === "SAY") {
+    db.prepare(
+      "INSERT INTO conversations (player_uuid, role, content, timestamp) VALUES (?, ?, ?, ?)"
+    ).run(playerUuid, "josh", sayAction.text, Date.now());
+  }
+}
+
+// ── Background tasks (memory + summarization, non-blocking) ──
+
+function runBackgroundTasks(playerUuid: string): void {
+  if (!llmProvider) return;
+
+  // Run asynchronously — don't block the response
+  setImmediate(async () => {
+    try {
+      // Memory extraction: every 5 conversations
+      const count = getConversationCount(playerUuid, db);
+      if (count > 0 && count % 5 === 0) {
+        const recentText = getRecentConversationText(playerUuid, db, 10);
+        if (recentText) {
+          await extractMemories(playerUuid, recentText, db, llmProvider!);
+        }
+      }
+
+      // Summarization: when conversation history exceeds threshold
+      await summarizeIfNeeded(
+        playerUuid,
+        db,
+        llmProvider!,
+        config.memory.summarize_after_turns
+      );
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[background] Error for ${playerUuid}: ${msg}`);
+    }
+  });
+}
+
 // ── Routes ──
 
 app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
-    version: "0.1.0",
+    version: "0.2.0",
     llm: llmProvider?.name ?? "none",
   });
 });
@@ -225,55 +292,30 @@ app.post("/api/agent/tick", async (req, res) => {
   const state = req.body as WorldState;
   const playerUuid = state.player.name;
 
+  // Log incoming events to SQLite
+  logPlayerEvent(state);
+
+  // ── Check if Josh should respond ──
+  const trigger: TriggerResult = shouldRespond(state, config.behavior);
+
+  if (!trigger.shouldRespond) {
+    // Nothing to do — return empty actions
+    res.json({
+      actions: [],
+      debug: {
+        trigger: "none",
+        latency_ms: Date.now() - start,
+      },
+    } as AgentResponse);
+    return;
+  }
+
   console.log(
-    `[tick] player=${state.player.name} stage=${state.quest?.current_stage ?? "unknown"} events=${state.recent_events?.length ?? 0}`
+    `[tick] player=${playerUuid} stage=${state.quest?.current_stage ?? "?"} trigger=${trigger.reason}${trigger.detail ? ` (${trigger.detail})` : ""}`
   );
-
-  // Log incoming player chat to SQLite
-  const chatEvent = state.recent_events?.find(
-    (e) => e.type === "chat_message"
-  );
-  if (chatEvent && typeof chatEvent.text === "string") {
-    db.prepare(
-      "INSERT INTO conversations (player_uuid, role, content, timestamp) VALUES (?, ?, ?, ?)"
-    ).run(playerUuid, "player", chatEvent.text, Date.now());
-  }
-
-  // Log interaction events too
-  const interactionEvent = state.recent_events?.find(
-    (e) => e.type === "interaction"
-  );
-  if (interactionEvent) {
-    db.prepare(
-      "INSERT INTO conversations (player_uuid, role, content, timestamp) VALUES (?, ?, ?, ?)"
-    ).run(
-      playerUuid,
-      "player",
-      "[Player interacted with Josh]",
-      Date.now()
-    );
-  }
-
-  // Update quest state in DB
-  if (state.quest) {
-    db.prepare(
-      `INSERT INTO quest_state (player_uuid, current_stage, completed_objectives, started_at, last_interaction)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(player_uuid) DO UPDATE SET
-         current_stage = excluded.current_stage,
-         completed_objectives = excluded.completed_objectives,
-         last_interaction = excluded.last_interaction`
-    ).run(
-      playerUuid,
-      state.quest.current_stage,
-      JSON.stringify(state.quest.objectives_completed ?? []),
-      Date.now(),
-      Date.now()
-    );
-  }
 
   let actions: AgentAction[];
-  let trigger = "unknown";
+  let triggerLabel = trigger.reason ?? "unknown";
 
   // ── Try LLM path ──
   if (llmProvider && !isRateLimited()) {
@@ -289,46 +331,36 @@ app.post("/api/agent/tick", async (req, res) => {
       );
 
       actions = parseLLMResponse(llmResponse.content);
-      trigger = "llm";
+      triggerLabel = `llm:${trigger.reason}`;
 
       console.log(
-        `[tick] LLM response: ${actions.length} actions, ${llmResponse.usage?.input_tokens ?? "?"}in/${llmResponse.usage?.output_tokens ?? "?"}out tokens`
+        `[tick] LLM: ${actions.length} actions, ${llmResponse.usage?.input_tokens ?? "?"}in/${llmResponse.usage?.output_tokens ?? "?"}out`
       );
 
-      // Log Josh's response to SQLite
-      const sayAction = actions.find((a) => a.type === "SAY");
-      if (sayAction && sayAction.type === "SAY") {
-        db.prepare(
-          "INSERT INTO conversations (player_uuid, role, content, timestamp) VALUES (?, ?, ?, ?)"
-        ).run(playerUuid, "josh", sayAction.text, Date.now());
-      }
+      logJoshResponse(playerUuid, actions);
+
+      // Kick off background memory extraction + summarization
+      runBackgroundTasks(playerUuid);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error(`[tick] LLM error, falling back: ${msg}`);
       actions = getFallbackActions(state);
-      trigger = "fallback_error";
+      triggerLabel = "fallback_error";
+      logJoshResponse(playerUuid, actions);
     }
   } else {
     // ── Fallback: hardcoded responses ──
     actions = getFallbackActions(state);
-    trigger = llmProvider ? "fallback_rate_limit" : "fallback_no_llm";
-
-    // Log fallback response
-    const sayAction = actions.find((a) => a.type === "SAY");
-    if (sayAction && sayAction.type === "SAY") {
-      db.prepare(
-        "INSERT INTO conversations (player_uuid, role, content, timestamp) VALUES (?, ?, ?, ?)"
-      ).run(playerUuid, "josh", sayAction.text, Date.now());
-    }
+    triggerLabel = llmProvider ? "fallback_rate_limit" : "fallback_no_llm";
+    logJoshResponse(playerUuid, actions);
   }
-
-  const latency = Date.now() - start;
 
   const response: AgentResponse = {
     actions,
     debug: {
-      trigger,
-      latency_ms: latency,
+      trigger: triggerLabel,
+      reasoning: trigger.detail,
+      latency_ms: Date.now() - start,
     },
   };
 
@@ -345,9 +377,9 @@ function getFallbackActions(state: WorldState): AgentAction[] {
 initLLM().then(() => {
   app.listen(config.port, () => {
     console.log(
-      `[agent-server] LabsCraft Agent Server running on port ${config.port}`
+      `[agent-server] LabsCraft Agent Server v0.2.0 on port ${config.port}`
     );
-    console.log(`[agent-server] POST /api/agent/tick to interact`);
-    console.log(`[agent-server] GET  /health for status`);
+    console.log(`[agent-server] LLM: ${llmProvider?.name ?? "none (hardcoded fallback)"}`);
+    console.log(`[agent-server] POST /api/agent/tick | GET /health`);
   });
 });
