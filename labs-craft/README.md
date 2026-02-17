@@ -6,6 +6,21 @@ A Minecraft Fabric mod (1.21.4) where you play as an APM intern at "Labs" learni
 
 LabsCraft introduces a quest-driven gameplay experience centered around collecting TPUs (Tensor Processing Units) and building AI generation consoles. Meet Josh Woodward, your PM guide, and progress through the internship by crafting increasingly powerful generation hardware.
 
+## Custom Map
+
+LabsCraft includes an auto-generating Googleplex office campus built on a superflat world. On first world load, the mod generates a 200×200 block structure centered on the world spawn with:
+
+- **Lobby** with reception desk, Flow Crafting Table, and Josh Woodward NPC
+- **Flow Lab**, **Genie Lab**, and **Veo Lab** with their respective consoles
+- **Cafeteria**, **Server Room**, **Mine Entrance**, and exterior courtyard
+- **Superflat terrain**: bedrock → deepslate → stone → dirt → grass (65 blocks) with ore generation enabled for TPU mining
+
+The map generates automatically on first server start, or manually via `/labscraft build`. Generation is idempotent — restarting the server won't duplicate the structure.
+
+### Superflat World Preset
+
+For the intended experience, create a new world using the **LabsCraft Googleplex** superflat preset, which provides a clean flat terrain with underground ores for TPU mining.
+
 ## Features
 
 ### Agentic NPC System (v0.2.0)
@@ -133,6 +148,14 @@ Built in the Flow Crafting Table:
 - **Nano Banana Console**: 5 TPUs
 - **Veo Console**: 10 TPUs
 
+### Commands
+
+**`/labscraft build`**
+- Generates the Googleplex office at the player's position
+- Spawns Josh Woodward NPC in the lobby
+- Marks the world as generated (prevents auto-gen duplication)
+- Requires operator permissions
+
 ## Installation
 
 1. Install [Fabric Loader](https://fabricmc.net/) for Minecraft 1.21.4
@@ -147,6 +170,9 @@ Built in the Flow Crafting Table:
 
 # Run the client
 ./gradlew runClient
+
+# Run tests (174+ unit tests)
+./gradlew test
 
 # Run the agent server (separate terminal)
 cd agent-server && npm run dev
@@ -174,6 +200,17 @@ cd agent-server && npm run dev
 └──────────────────────────────────────────┘
 ```
 
+### Testing
+
+The project includes 174+ unit tests using JUnit 5 and Mockito. Tests use pure-Java logic mirrors to avoid Minecraft class bootstrap dependencies, enabling fast isolated testing of:
+
+- Quest stage transitions and serialization
+- Crafting table TPU counting and cost validation
+- Console generation state machines
+- Googleplex structural layout and room positioning
+- Auto-generation origin math and spawn positions
+- Persistent state tracking
+
 ## File Structure
 
 ```
@@ -189,12 +226,16 @@ src/main/java/com/labscraft/
 │   └── ChatListener.java       # Server chat → agent events
 ├── block/                      # Block classes
 ├── block/entity/               # Block entities
+├── command/                    # Commands (/labscraft build)
 ├── entity/                     # Entity classes (Josh Woodward)
 ├── item/                       # Items (TPU, spawn eggs)
 ├── network/                    # Client-server packets
 ├── quest/                      # Quest system
 ├── screen/                     # GUI screens and handlers
-└── world/                      # World generation
+└── world/                      # World generation, Googleplex map
+    ├── GoogleplexGenerator.java      # 200×200 structure builder
+    ├── GoogleplexAutoGenerator.java  # First-load auto-generation
+    └── GoogleplexState.java          # Persistent generation state
 
 agent-server/
 ├── src/

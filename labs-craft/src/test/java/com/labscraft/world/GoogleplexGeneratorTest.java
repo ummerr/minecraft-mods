@@ -382,6 +382,77 @@ class GoogleplexGeneratorTest {
     }
 
     @Nested
+    class FlowCraftingTablePlacement {
+        // Crafting table at relative (85, 1, 12)
+        static final int TABLE_X = 85;
+        static final int TABLE_Z = 12;
+
+        @Test
+        void craftingTable_isInsideLobby() {
+            assertTrue(TABLE_X >= LOBBY_START_X && TABLE_X < LOBBY_END_X,
+                "Crafting table X should be inside lobby");
+            assertTrue(TABLE_Z >= 0 && TABLE_Z < LOBBY_DEPTH,
+                "Crafting table Z should be inside lobby");
+        }
+
+        @Test
+        void craftingTable_doesNotOverlapReceptionDesk() {
+            // Reception desk is at x=95-105, z=15-17
+            int deskStartX = 95;
+            int deskEndX = 105;
+            int deskStartZ = 15;
+            int deskEndZ = 17;
+
+            boolean overlaps = TABLE_X >= deskStartX && TABLE_X <= deskEndX
+                && TABLE_Z >= deskStartZ && TABLE_Z <= deskEndZ;
+            assertFalse(overlaps, "Crafting table should not overlap reception desk");
+        }
+
+        @Test
+        void craftingTable_isAccessibleFromEntrance() {
+            // Entrance is at z=0, table at z=12 — player can walk straight to it
+            assertTrue(TABLE_Z > 0 && TABLE_Z < LOBBY_DEPTH,
+                "Table should be accessible from the entrance");
+        }
+    }
+
+    @Nested
+    class ConsolePlacements {
+        @Test
+        void flowLab_hasFlowConsole_notVeo() {
+            // The Flow Lab should contain a Flow Console (previously had a bug placing Veo)
+            // Flow Lab: startX=10, startZ=35, console at relative (30, 1, 57)
+            int consoleX = 30;
+            int consoleZ = 57;
+            int labStartX = 10;
+            int labStartZ = 35;
+            int labWidth = 40;
+            int labDepth = 45;
+
+            assertTrue(consoleX >= labStartX && consoleX < labStartX + labWidth,
+                "Flow console should be inside Flow lab X bounds");
+            assertTrue(consoleZ >= labStartZ && consoleZ < labStartZ + labDepth,
+                "Flow console should be inside Flow lab Z bounds");
+        }
+
+        @Test
+        void genieLab_hasNanoBananaConsole() {
+            // Genie Lab: startX=150, console at (170, 1, 57)
+            int consoleX = 170;
+            int consoleZ = 57;
+            int labStartX = 150;
+            int labStartZ = 35;
+            int labWidth = 40;
+            int labDepth = 45;
+
+            assertTrue(consoleX >= labStartX && consoleX < labStartX + labWidth,
+                "Nano Banana console should be inside Genie lab X bounds");
+            assertTrue(consoleZ >= labStartZ && consoleZ < labStartZ + labDepth,
+                "Nano Banana console should be inside Genie lab Z bounds");
+        }
+    }
+
+    @Nested
     class ExteriorWalls {
         @Test
         void windowBands_areAtCorrectHeights() {

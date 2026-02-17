@@ -1,0 +1,31 @@
+{
+  "display": "labscraft:flow_crafting_table",
+  "settings": {
+    "biome": "minecraft:plains",
+    "lakes": false,
+    "features": true,
+    "layers": [
+      {
+        "block": "minecraft:bedrock",
+        "height": 1
+      },
+      {
+        "block": "minecraft:deepslate",
+        "height": 20
+      },
+      {
+        "block": "minecraft:stone",
+        "height": 40
+      },
+      {
+        "block": "minecraft:dirt",
+        "height": 3
+      },
+      {
+        "block": "minecraft:grass_block",
+        "height": 1
+      }
+    ],
+    "structure_overrides": []
+  }
+}

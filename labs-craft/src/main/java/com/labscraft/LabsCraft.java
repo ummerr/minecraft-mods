@@ -13,6 +13,7 @@ import com.labscraft.network.FlowCraftingTablePackets;
 import com.labscraft.network.NanoBananaConsolePackets;
 import com.labscraft.network.VeoConsolePackets;
 import com.labscraft.screen.ModScreenHandlers;
+import com.labscraft.world.GoogleplexAutoGenerator;
 import com.labscraft.world.ModWorldGeneration;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
@@ -35,6 +36,7 @@ public class LabsCraft implements ModInitializer {
         FlowCraftingTablePackets.registerServer();
         ModWorldGeneration.registerWorldGeneration();
         ModCommands.registerCommands();
+        GoogleplexAutoGenerator.register();
 
         // Initialize agentic NPC system
         AgentConfig agentConfig = AgentConfig.load();
