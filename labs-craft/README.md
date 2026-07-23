@@ -134,8 +134,15 @@ LABSCRAFT_AGENT_SMOKETEST=true ./gradlew runServer  # chat → POST /tick → SA
 
 ## Rebuild notes (v1 → v2)
 
-v1 was deleted and rebuilt. The rebuild targeted specific defects that made the core
-loop hollow:
+v1 was deleted and rebuilt from a spec. Full accounting — approach, system map, token
+costs, and an honest read of what the numbers do and don't prove — is in
+**[docs/REBUILD.md](docs/REBUILD.md)**.
+
+Headline: **6,785 → 12,105 LOC, 148 → 214 tests, 10 defects fixed, ~100 minutes**, built
+by 7 parallel agents against a frozen wire contract, integrating with zero breaking
+mismatches.
+
+The rebuild targeted specific defects that made the core loop hollow:
 
 - **Consoles produced nothing.** v1 ran a 100-tick progress bar and incremented a
   counter. No item, no reward. Now they consume TPU and emit real artifacts.
