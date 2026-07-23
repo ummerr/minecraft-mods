@@ -1,0 +1,43 @@
+{
+	"mod.labscraft.name": "LabsCraft",
+	"itemgroup.labscraft": "LabsCraft",
+
+	"item.labscraft.tpu": "TPU",
+	"item.labscraft.flow_sketch": "Flow Sketch",
+	"item.labscraft.generated_image": "Generated Image",
+	"item.labscraft.generated_video": "Generated Video",
+
+	"entity.labscraft.josh_woodward": "Josh Woodward",
+	"item.labscraft.josh_woodward_spawn_egg": "Josh Woodward Spawn Egg",
+
+	"block.labscraft.tpu_ore": "TPU Ore",
+	"block.labscraft.deepslate_tpu_ore": "Deepslate TPU Ore",
+	"block.labscraft.flow_console": "Flow Console",
+	"block.labscraft.nano_banana_console": "Nano Banana Console",
+	"block.labscraft.veo_console": "Veo Console",
+	"block.labscraft.flow_crafting_table": "Flow Crafting Table",
+
+	"container.labscraft.flow_console": "Flow Console",
+	"container.labscraft.nano_banana_console": "Nano Banana Console",
+	"container.labscraft.veo_console": "Veo Console",
+	"container.labscraft.flow_crafting_table": "Flow Crafting Table",
+
+	"screen.labscraft.generate": "Generate (%s TPU)",
+	"screen.labscraft.generating": "Generating...",
+	"screen.labscraft.status.generating": "Generating: %s%%",
+	"screen.labscraft.status.ready": "Ready to generate",
+	"screen.labscraft.total_generations": "Total generations: %s",
+	"screen.labscraft.craft_nano_banana": "Nano Banana (%s)",
+	"screen.labscraft.craft_veo": "Veo (%s)",
+	"screen.labscraft.tpu_count": "TPU: %s",
+
+	"tooltip.labscraft.tpu": "Tensor Processing Unit. Compute is all you need.",
+	"tooltip.labscraft.tpu_ore": "Someone buried the datacenter again.",
+	"tooltip.labscraft.flow_sketch": "A rough first pass. Ship it anyway.",
+	"tooltip.labscraft.generated_image": "Fresh from the Nano Banana pipeline.",
+	"tooltip.labscraft.generated_video": "Eight seconds of pure cinema.",
+	"tooltip.labscraft.flow_console": "Sketch generation. 1 TPU per run.",
+	"tooltip.labscraft.nano_banana_console": "Image generation. 1 TPU per run.",
+	"tooltip.labscraft.veo_console": "Video generation. 3 TPU per run.",
+	"tooltip.labscraft.flow_crafting_table": "Turns TPUs into consoles. Very lean, very agile."
+}

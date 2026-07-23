@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "labscraft:tpu_ore",
+    "labscraft:deepslate_tpu_ore",
+    "labscraft:flow_console",
+    "labscraft:nano_banana_console",
+    "labscraft:veo_console"
+  ]
+}

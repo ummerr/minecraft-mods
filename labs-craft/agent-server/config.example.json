@@ -1,0 +1,32 @@
+{
+  "port": 3001,
+  "providers": {
+    "claude": {
+      "apiKey": "",
+      "model": "claude-opus-4-8"
+    },
+    "gemini": {
+      "apiKey": "",
+      "model": "gemini-2.5-flash"
+    },
+    "ollama": {
+      "enabled": false,
+      "baseUrl": "http://localhost:11434",
+      "model": "llama3.2"
+    }
+  },
+  "memory": {
+    "dbPath": "./data/memory.db"
+  },
+  "triggers": {
+    "cooldownsMs": {
+      "chat_message": 3000,
+      "interaction": 3000,
+      "quest_completed": 8000,
+      "danger": 20000,
+      "idle_near_objective": 120000,
+      "periodic_proximity": 60000
+    },
+    "evictAfterMs": 600000
+  }
+}
