@@ -1,8 +1,0 @@
-{
-  "parent": "minecraft:block/cube_bottom_top",
-  "textures": {
-    "bottom": "labscraft:block/nano_banana_console",
-    "side": "labscraft:block/nano_banana_console",
-    "top": "labscraft:block/nano_banana_console_top"
-  }
-}
