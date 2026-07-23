@@ -65,7 +65,9 @@ public final class QuestIntegration {
      */
     public static void onCraftingResultTaken(PlayerEntity player, ItemStack stack) {
         if (player instanceof ServerPlayerEntity serverPlayer && !stack.isEmpty()) {
-            QuestManager.onItemCrafted(serverPlayer, Registries.ITEM.getId(stack.getItem()).toString());
+            String itemId = Registries.ITEM.getId(stack.getItem()).toString();
+            QuestManager.onItemCrafted(serverPlayer, itemId);
+            com.labscraft.agent.AgentBridge.notifyItemCrafted(serverPlayer, itemId);
         }
     }
 }

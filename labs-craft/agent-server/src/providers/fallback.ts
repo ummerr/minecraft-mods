@@ -39,6 +39,11 @@ const STAGE_HINTS: Record<string, readonly string[]> = {
     "Your console is idle, which makes our utilization metrics look bad. Run a generation.",
     "Time to dogfood the product. Kick off a generation on your console and let's see the pipeline work end to end.",
   ],
+  VIDEO_LAUNCH: [
+    "Images were the MVP. Video is the actual roadmap. You'll need a Veo Console — ten TPUs, so back to the mine.",
+    "Leadership saw the image demo and immediately asked about video. That's how this works. Craft a Veo Console.",
+    "Veo needs compute, and compute needs TPUs. Five more ore, then the console, then we generate. I have a hard stop in 30.",
+  ],
   COMPLETED: [
     "You shipped. I've noted it in your perf packet. Keep generating — the roadmap never sleeps.",
     "Internship objectives: complete. Working as intended. Now we talk headcount for next quarter.",

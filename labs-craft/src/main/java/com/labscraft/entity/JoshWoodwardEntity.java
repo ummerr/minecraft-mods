@@ -72,6 +72,19 @@ public class JoshWoodwardEntity extends PathAwareEntity {
     private long lastSpokeGameTime = Long.MIN_VALUE;
     private int dialogueVariant;
 
+    /**
+     * When true, an external agent (the G5 bridge) is driving Josh's dialogue,
+     * so {@link #interactMob} skips the static line (the agent answers the
+     * {@code interaction} event instead). Quest progression and emotes are
+     * unaffected. Defaults to false so Josh is fully playable standalone.
+     */
+    private static java.util.function.BooleanSupplier agentDrivenCheck = () -> false;
+
+    /** Installed by the agent bridge; never called by anything else. */
+    public static void setAgentDrivenCheck(java.util.function.BooleanSupplier check) {
+        agentDrivenCheck = check != null ? check : () -> false;
+    }
+
     public JoshWoodwardEntity(EntityType<? extends PathAwareEntity> type, World world) {
         super(type, world);
         setPersistent();
@@ -149,7 +162,10 @@ public class JoshWoodwardEntity extends PathAwareEntity {
 
         PlayerQuestState state = QuestManager.getState(serverPlayer);
         getLookControl().lookAt(serverPlayer);
-        say(JoshDialogue.lineFor(state.stage(), state.objectives(), dialogueVariant++));
+        if (!agentDrivenCheck.getAsBoolean()) {
+            // Static fallback dialogue — the agent server is not driving Josh.
+            say(JoshDialogue.lineFor(state.stage(), state.objectives(), dialogueVariant++));
+        }
 
         if (state.stage() != before) {
             // Talking just moved the quest along — acknowledge it physically.

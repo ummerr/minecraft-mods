@@ -1,10 +1,14 @@
 package com.labscraft;
 
+import com.labscraft.agent.AgentBridge;
 import com.labscraft.block.ModBlocks;
 import com.labscraft.block.entity.ModBlockEntities;
+import com.labscraft.command.GoogleplexCommands;
 import com.labscraft.command.JoshCommands;
 import com.labscraft.entity.ModEntities;
+import com.labscraft.integration.AgentSmokeTest;
 import com.labscraft.integration.QuestIntegration;
+import com.labscraft.integration.RuntimeSmokeTest;
 import com.labscraft.item.ModItemGroups;
 import com.labscraft.item.ModItems;
 import com.labscraft.quest.QuestManager;
@@ -37,8 +41,13 @@ public class LabsCraft implements ModInitializer {
 		QuestManager.register();
 		QuestIntegration.register();
 		JoshCommands.register();
-		com.labscraft.integration.RuntimeSmokeTest.register();
+		GoogleplexCommands.register();
+		AgentBridge.register();
 
-		LOGGER.info("LabsCraft initialized (G1 content + G2 quests + G3 Josh)");
+		// Env-gated integration harnesses; inert unless LABSCRAFT_*_SMOKETEST is set.
+		RuntimeSmokeTest.register();
+		AgentSmokeTest.register();
+
+		LOGGER.info("LabsCraft initialized");
 	}
 }
