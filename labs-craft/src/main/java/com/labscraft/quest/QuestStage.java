@@ -1,11 +1,16 @@
 package com.labscraft.quest;
 
+/**
+ * The internship arc. Linear progression; each stage's objectives are defined
+ * in {@link QuestLine}. Pure Java — no Minecraft imports (unit-testable).
+ */
 public enum QuestStage {
-    NOT_STARTED("Not Started"),
-    FLOW_INTRO("Flow Introduction"),
-    LEARNING_PIPELINE("Learning the Pipeline"),
-    FIRST_GENERATION("First Generation"),
-    COMPLETED("Completed");
+    NOT_STARTED("Orientation Day"),
+    FLOW_INTRO("Compute Procurement"),
+    LEARNING_PIPELINE("Infrastructure Buildout"),
+    FIRST_GENERATION("First Launch"),
+    VIDEO_LAUNCH("Scale to Video"),
+    COMPLETED("Return Offer");
 
     private final String displayName;
 
@@ -13,23 +18,28 @@ public enum QuestStage {
         this.displayName = displayName;
     }
 
-    public String getDisplayName() {
+    public String displayName() {
         return displayName;
     }
 
+    public boolean isTerminal() {
+        return this == COMPLETED;
+    }
+
+    /** The following stage, or this stage itself if terminal. */
     public QuestStage next() {
-        int nextOrdinal = this.ordinal() + 1;
-        if (nextOrdinal >= values().length) {
-            return this;
+        return isTerminal() ? this : values()[ordinal() + 1];
+    }
+
+    /** Case-insensitive lookup; returns null when the name is unknown. */
+    public static QuestStage fromName(String name) {
+        if (name == null) {
+            return null;
         }
-        return values()[nextOrdinal];
-    }
-
-    public boolean isAfter(QuestStage other) {
-        return this.ordinal() > other.ordinal();
-    }
-
-    public boolean isAtLeast(QuestStage other) {
-        return this.ordinal() >= other.ordinal();
+        try {
+            return valueOf(name.trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

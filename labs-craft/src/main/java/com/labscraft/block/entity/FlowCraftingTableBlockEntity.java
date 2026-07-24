@@ -1,8 +1,11 @@
 package com.labscraft.block.entity;
 
+import com.labscraft.LabsCraftHooks;
 import com.labscraft.block.ModBlocks;
 import com.labscraft.item.ModItems;
+import com.labscraft.logic.FlowCraftingLogic;
 import com.labscraft.screen.FlowCraftingTableScreenHandler;
+import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -11,23 +14,30 @@ import net.minecraft.inventory.Inventories;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.registry.RegistryWrapper;
 import net.minecraft.screen.NamedScreenHandlerFactory;
 import net.minecraft.screen.ScreenHandler;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.collection.DefaultedList;
 import net.minecraft.util.math.BlockPos;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * Flow Crafting Table: 10 TPU input slots + 1 output slot.
+ * 5 TPU → Nano Banana Console, 10 TPU → Veo Console.
+ * Crafting math lives in the pure-Java {@link FlowCraftingLogic}.
+ */
 public class FlowCraftingTableBlockEntity extends BlockEntity implements NamedScreenHandlerFactory, Inventory {
-    // Inventory slots: 0-9 = TPU input slots (10 slots for up to 10 TPUs), 10 = output slot
-    private final DefaultedList<ItemStack> inventory = DefaultedList.ofSize(11, ItemStack.EMPTY);
+    public static final int TPU_SLOTS = FlowCraftingLogic.INPUT_SLOTS;
+    public static final int OUTPUT_SLOT = TPU_SLOTS;
+    private static final int SLOT_COUNT = TPU_SLOTS + 1;
 
-    public static final int TPU_SLOTS = 10;
-    public static final int OUTPUT_SLOT = 10;
-
-    public static final int NANO_BANANA_COST = 5;
-    public static final int VEO_COST = 10;
+    private final DefaultedList<ItemStack> inventory = DefaultedList.ofSize(SLOT_COUNT, ItemStack.EMPTY);
 
     public FlowCraftingTableBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.FLOW_CRAFTING_TABLE, pos, state);
@@ -35,7 +45,7 @@ public class FlowCraftingTableBlockEntity extends BlockEntity implements NamedSc
 
     @Override
     public Text getDisplayName() {
-        return Text.literal("Flow Crafting Table");
+        return Text.translatable("container.labscraft.flow_crafting_table");
     }
 
     @Nullable
@@ -44,73 +54,80 @@ public class FlowCraftingTableBlockEntity extends BlockEntity implements NamedSc
         return new FlowCraftingTableScreenHandler(syncId, playerInventory, this);
     }
 
-    public int countTPUs() {
-        int count = 0;
+    /** Snapshot of TPU counts per input slot, for the pure crafting logic. */
+    private int[] tpuSlotCounts() {
+        int[] counts = new int[TPU_SLOTS];
         for (int i = 0; i < TPU_SLOTS; i++) {
             ItemStack stack = inventory.get(i);
-            if (!stack.isEmpty() && stack.isOf(ModItems.TPU)) {
-                count += stack.getCount();
-            }
+            counts[i] = stack.isOf(ModItems.TPU) ? stack.getCount() : 0;
         }
-        return count;
+        return counts;
+    }
+
+    public int countTpus() {
+        return FlowCraftingLogic.countTpus(tpuSlotCounts());
     }
 
     public boolean canCraftNanoBanana() {
-        return countTPUs() >= NANO_BANANA_COST && inventory.get(OUTPUT_SLOT).isEmpty();
+        return FlowCraftingLogic.canCraft(tpuSlotCounts(), FlowCraftingLogic.NANO_BANANA_COST,
+            inventory.get(OUTPUT_SLOT).isEmpty());
     }
 
     public boolean canCraftVeo() {
-        return countTPUs() >= VEO_COST && inventory.get(OUTPUT_SLOT).isEmpty();
+        return FlowCraftingLogic.canCraft(tpuSlotCounts(), FlowCraftingLogic.VEO_COST,
+            inventory.get(OUTPUT_SLOT).isEmpty());
     }
 
-    public void craftNanoBanana() {
-        if (!canCraftNanoBanana()) return;
+    public void craftNanoBanana(@Nullable ServerPlayerEntity player) {
+        craft(FlowCraftingLogic.NANO_BANANA_COST, ModBlocks.NANO_BANANA_CONSOLE, "nano_banana_console", player);
+    }
 
-        // Remove 5 TPUs
-        int toRemove = NANO_BANANA_COST;
-        for (int i = 0; i < TPU_SLOTS && toRemove > 0; i++) {
-            ItemStack stack = inventory.get(i);
-            if (!stack.isEmpty() && stack.isOf(ModItems.TPU)) {
-                int removeFromSlot = Math.min(toRemove, stack.getCount());
-                stack.decrement(removeFromSlot);
-                toRemove -= removeFromSlot;
+    public void craftVeo(@Nullable ServerPlayerEntity player) {
+        craft(FlowCraftingLogic.VEO_COST, ModBlocks.VEO_CONSOLE, "veo_console", player);
+    }
+
+    private void craft(int cost, Block result, String consoleId, @Nullable ServerPlayerEntity player) {
+        if (!inventory.get(OUTPUT_SLOT).isEmpty()) {
+            return;
+        }
+        int[] plan = FlowCraftingLogic.removalPlan(tpuSlotCounts(), cost);
+        if (plan == null) {
+            return;
+        }
+        for (int i = 0; i < TPU_SLOTS; i++) {
+            if (plan[i] > 0) {
+                inventory.get(i).decrement(plan[i]);
             }
         }
-
-        // Add Nano Banana Console to output
-        inventory.set(OUTPUT_SLOT, new ItemStack(ModBlocks.NANO_BANANA_CONSOLE));
+        inventory.set(OUTPUT_SLOT, new ItemStack(result));
         markDirty();
-    }
-
-    public void craftVeo() {
-        if (!canCraftVeo()) return;
-
-        // Remove 10 TPUs
-        int toRemove = VEO_COST;
-        for (int i = 0; i < TPU_SLOTS && toRemove > 0; i++) {
-            ItemStack stack = inventory.get(i);
-            if (!stack.isEmpty() && stack.isOf(ModItems.TPU)) {
-                int removeFromSlot = Math.min(toRemove, stack.getCount());
-                stack.decrement(removeFromSlot);
-                toRemove -= removeFromSlot;
-            }
+        playCraftEffects();
+        if (player != null) {
+            LabsCraftHooks.fireConsoleCrafted(player, consoleId, pos);
         }
-
-        // Add Veo Console to output
-        inventory.set(OUTPUT_SLOT, new ItemStack(ModBlocks.VEO_CONSOLE));
-        markDirty();
     }
 
-    // Inventory implementation
+    private void playCraftEffects() {
+        if (world instanceof ServerWorld serverWorld) {
+            serverWorld.playSound(null, pos, SoundEvents.BLOCK_SMITHING_TABLE_USE, SoundCategory.BLOCKS, 1.0f, 1.0f);
+            serverWorld.spawnParticles(ParticleTypes.HAPPY_VILLAGER,
+                pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5, 8, 0.3, 0.3, 0.3, 0.0);
+        }
+    }
+
+    // ---- Inventory ----
+
     @Override
     public int size() {
-        return inventory.size();
+        return SLOT_COUNT;
     }
 
     @Override
     public boolean isEmpty() {
         for (ItemStack stack : inventory) {
-            if (!stack.isEmpty()) return false;
+            if (!stack.isEmpty()) {
+                return false;
+            }
         }
         return true;
     }
@@ -145,7 +162,8 @@ public class FlowCraftingTableBlockEntity extends BlockEntity implements NamedSc
 
     @Override
     public boolean canPlayerUse(PlayerEntity player) {
-        return true;
+        // v1 defect #10 fix: real distance check instead of `return true`.
+        return Inventory.canPlayerUse(this, player);
     }
 
     @Override
@@ -155,12 +173,10 @@ public class FlowCraftingTableBlockEntity extends BlockEntity implements NamedSc
 
     @Override
     public boolean isValid(int slot, ItemStack stack) {
-        // Only TPUs in input slots, nothing can be placed in output
-        if (slot == OUTPUT_SLOT) {
-            return false;
-        }
-        return stack.isOf(ModItems.TPU);
+        return slot != OUTPUT_SLOT && stack.isOf(ModItems.TPU);
     }
+
+    // ---- Persistence ----
 
     @Override
     protected void writeNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
@@ -171,6 +187,7 @@ public class FlowCraftingTableBlockEntity extends BlockEntity implements NamedSc
     @Override
     protected void readNbt(NbtCompound nbt, RegistryWrapper.WrapperLookup registryLookup) {
         super.readNbt(nbt, registryLookup);
+        inventory.clear();
         Inventories.readNbt(nbt, inventory, registryLookup);
     }
 }

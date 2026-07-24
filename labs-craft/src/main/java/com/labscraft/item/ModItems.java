@@ -1,49 +1,52 @@
 package com.labscraft.item;
 
 import com.labscraft.LabsCraft;
-import com.labscraft.entity.ModEntities;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemGroups;
-import net.minecraft.item.SpawnEggItem;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.Rarity;
 
-public class ModItems {
+public final class ModItems {
+    private ModItems() {
+    }
 
-    // TPU - used to craft consoles
-    public static final Item TPU = registerItem(
-        "tpu",
-        new Item(new Item.Settings()
-            .registryKey(RegistryKey.of(RegistryKeys.ITEM, Identifier.of(LabsCraft.MOD_ID, "tpu"))))
-    );
+    /** TPU — mined from TPU ore, spent at consoles and the Flow Crafting Table. */
+    public static final Item TPU = register("tpu", new Item(settings("tpu")));
 
-    // Spawn egg with Google Blue (#4285F4) and White (#FFFFFF) colors defined in spawn_egg_colors.json
-    public static final Item JOSH_WOODWARD_SPAWN_EGG = registerItem(
-        "josh_woodward_spawn_egg",
-        new SpawnEggItem(ModEntities.JOSH_WOODWARD,
-            new Item.Settings()
-                .registryKey(RegistryKey.of(RegistryKeys.ITEM, Identifier.of(LabsCraft.MOD_ID, "josh_woodward_spawn_egg"))))
-    );
+    /** Produced by the Flow Console (1 TPU). */
+    public static final Item FLOW_SKETCH = register("flow_sketch",
+        new Item(settings("flow_sketch").maxCount(16)));
 
-    private static Item registerItem(String name, Item item) {
+    /** Produced by the Nano Banana Console (1 TPU). */
+    public static final Item GENERATED_IMAGE = register("generated_image",
+        new Item(settings("generated_image").maxCount(16).rarity(Rarity.UNCOMMON)));
+
+    /** Produced by the Veo Console (3 TPU). */
+    public static final Item GENERATED_VIDEO = register("generated_video",
+        new Item(settings("generated_video").maxCount(16).rarity(Rarity.RARE)));
+
+    private static Item.Settings settings(String name) {
+        return new Item.Settings()
+            .registryKey(RegistryKey.of(RegistryKeys.ITEM, Identifier.of(LabsCraft.MOD_ID, name)));
+    }
+
+    private static Item register(String name, Item item) {
         return Registry.register(Registries.ITEM, Identifier.of(LabsCraft.MOD_ID, name), item);
     }
 
     public static void registerItems() {
-        LabsCraft.LOGGER.info("Registering items for " + LabsCraft.MOD_ID);
+        LabsCraft.LOGGER.info("Registering items for {}", LabsCraft.MOD_ID);
 
-        // Add TPU to ingredients tab
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.INGREDIENTS).register(content -> {
             content.add(TPU);
-        });
-
-        // Add spawn egg to the Spawn Eggs creative tab
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.SPAWN_EGGS).register(content -> {
-            content.add(JOSH_WOODWARD_SPAWN_EGG);
+            content.add(FLOW_SKETCH);
+            content.add(GENERATED_IMAGE);
+            content.add(GENERATED_VIDEO);
         });
     }
 }

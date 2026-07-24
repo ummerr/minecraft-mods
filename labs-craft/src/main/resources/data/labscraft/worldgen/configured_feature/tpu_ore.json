@@ -9,18 +9,14 @@
           "predicate_type": "minecraft:tag_match",
           "tag": "minecraft:stone_ore_replaceables"
         },
-        "state": {
-          "Name": "labscraft:tpu_ore"
-        }
+        "state": { "Name": "labscraft:tpu_ore" }
       },
       {
         "target": {
           "predicate_type": "minecraft:tag_match",
           "tag": "minecraft:deepslate_ore_replaceables"
         },
-        "state": {
-          "Name": "labscraft:deepslate_tpu_ore"
-        }
+        "state": { "Name": "labscraft:deepslate_tpu_ore" }
       }
     ]
   }

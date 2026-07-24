@@ -1,202 +1,269 @@
 package com.labscraft.agent;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import com.labscraft.entity.JoshWoodwardEntity;
 import com.labscraft.quest.QuestManager;
-import com.labscraft.quest.QuestStage;
+import net.minecraft.block.Block;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
-import net.minecraft.world.biome.Biome;
 
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
-public class WorldStateCollector {
+/**
+ * Builds the exact PROTOCOL-V2 {@code POST /tick} payload: player block, josh
+ * block (incl. {@code can_see_player} via the entity visibility raycast),
+ * quest block (delegated verbatim to {@link QuestManager#toWireJson}), world
+ * block ({@code @distance}-suffixed nearby entities/blocks), and
+ * {@code recent_events} from the {@link RecentEventsTracker}.
+ *
+ * <p>Runs on the server thread; the resulting String is handed to the async
+ * HTTP layer, so nothing here ever blocks on I/O.</p>
+ */
+public final class WorldStateCollector {
 
-    public static JsonObject collect(ServerPlayerEntity player, JoshWoodwardEntity josh) {
-        JsonObject state = new JsonObject();
-        state.addProperty("timestamp", System.currentTimeMillis() / 1000);
+    /** Radius for nearby_entities. */
+    private static final double ENTITY_RADIUS = 16.0;
 
-        state.add("player", collectPlayer(player));
-        state.add("josh", collectJosh(josh, player));
-        state.add("quest", collectQuest(player));
-        state.add("world", collectWorld(player));
-        state.add("recent_events", new JsonArray()); // Populated by event tracking
+    /** Radius (cube) for nearby_blocks_of_interest scanning. */
+    private static final int BLOCK_RADIUS = 8;
 
-        return state;
+    private static final int MAX_NEARBY_ENTITIES = 12;
+    private static final int MAX_INVENTORY_LINES = 12;
+
+    private WorldStateCollector() {
     }
 
-    private static JsonObject collectPlayer(ServerPlayerEntity player) {
-        JsonObject p = new JsonObject();
-        p.addProperty("name", player.getName().getString());
+    public static String buildPayload(ServerPlayerEntity player, JoshWoodwardEntity josh,
+            String sessionId, List<RecentEventsTracker.Event> events, long nowMs) {
+        ServerWorld world = player.getServerWorld();
+        StringBuilder sb = new StringBuilder(1600);
+        sb.append("{\"protocol_version\":2")
+                .append(",\"session_id\":\"").append(JsonLite.escape(sessionId)).append('"')
+                .append(",\"player_uuid\":\"").append(player.getUuid()).append('"')
+                .append(",\"timestamp_ms\":").append(nowMs);
 
-        JsonObject pos = new JsonObject();
-        pos.addProperty("x", Math.round(player.getX()));
-        pos.addProperty("y", Math.round(player.getY()));
-        pos.addProperty("z", Math.round(player.getZ()));
-        p.add("position", pos);
+        appendPlayer(sb, player, world);
+        appendJosh(sb, player, josh);
+        sb.append(",\"quest\":").append(QuestManager.toWireJson(player));
+        appendWorld(sb, player, josh, world);
+        appendRecentEvents(sb, events, nowMs);
 
-        p.addProperty("health", Math.round(player.getHealth()));
-        p.addProperty("hunger", player.getHungerManager().getFoodLevel());
+        return sb.append('}').toString();
+    }
 
-        // Inventory summary: group items by type with counts
-        JsonArray inventory = new JsonArray();
-        Map<String, Integer> itemCounts = new HashMap<>();
+    // ------------------------------------------------------------------
+    // player
+    // ------------------------------------------------------------------
+
+    private static void appendPlayer(StringBuilder sb, ServerPlayerEntity player, ServerWorld world) {
+        sb.append(",\"player\":{\"name\":\"").append(JsonLite.escape(player.getName().getString())).append('"')
+                .append(",\"position\":").append(position(player.getX(), player.getY(), player.getZ()))
+                .append(",\"health\":").append(oneDecimal(player.getHealth()))
+                .append(",\"max_health\":").append(oneDecimal(player.getMaxHealth()))
+                .append(",\"hunger\":").append(player.getHungerManager().getFoodLevel())
+                .append(",\"inventory_summary\":").append(inventorySummary(player))
+                .append(",\"held_item\":\"")
+                .append(JsonLite.escape(itemId(player.getMainHandStack()))).append('"')
+                .append(",\"is_sneaking\":").append(player.isSneaking())
+                .append(",\"biome\":\"").append(JsonLite.escape(biomeId(player, world))).append('"')
+                .append(",\"dimension\":\"")
+                .append(JsonLite.escape(world.getRegistryKey().getValue().toString())).append("\"}");
+    }
+
+    private static String inventorySummary(ServerPlayerEntity player) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
         for (int i = 0; i < player.getInventory().size(); i++) {
             ItemStack stack = player.getInventory().getStack(i);
             if (!stack.isEmpty()) {
-                String itemId = Registries.ITEM.getId(stack.getItem()).toString();
-                itemCounts.merge(itemId, stack.getCount(), Integer::sum);
+                counts.merge(itemId(stack), stack.getCount(), Integer::sum);
             }
         }
-        for (Map.Entry<String, Integer> entry : itemCounts.entrySet()) {
-            inventory.add(entry.getKey() + " x" + entry.getValue());
-        }
-        p.add("inventory_summary", inventory);
-
-        ItemStack held = player.getMainHandStack();
-        if (!held.isEmpty()) {
-            p.addProperty("held_item", Registries.ITEM.getId(held.getItem()).toString());
-        } else {
-            p.add("held_item", null);
-        }
-
-        p.addProperty("is_sneaking", player.isSneaking());
-
-        // Biome
-        BlockPos blockPos = player.getBlockPos();
-        var biomeEntry = player.getWorld().getBiome(blockPos);
-        String biomeName = biomeEntry.getKey()
-                .map(key -> key.getValue().getPath())
-                .orElse("unknown");
-        p.addProperty("biome", biomeName);
-
-        return p;
-    }
-
-    private static JsonObject collectJosh(JoshWoodwardEntity josh, ServerPlayerEntity player) {
-        JsonObject j = new JsonObject();
-
-        JsonObject pos = new JsonObject();
-        pos.addProperty("x", Math.round(josh.getX()));
-        pos.addProperty("y", Math.round(josh.getY()));
-        pos.addProperty("z", Math.round(josh.getZ()));
-        j.add("position", pos);
-
-        j.addProperty("distance_to_player", Math.round(josh.distanceTo(player) * 10.0) / 10.0);
-        j.addProperty("current_activity", "idle");
-        j.addProperty("last_spoke_ticks_ago", josh.getTicksSinceLastSpoke());
-
-        return j;
-    }
-
-    private static JsonObject collectQuest(ServerPlayerEntity player) {
-        JsonObject q = new JsonObject();
-        ServerWorld world = (ServerWorld) player.getWorld();
-        QuestManager questManager = QuestManager.get(world);
-        QuestStage stage = questManager.getStage(player);
-
-        q.addProperty("current_stage", stage.name());
-
-        // Build objectives based on stage
-        JsonArray completed = new JsonArray();
-        JsonArray remaining = new JsonArray();
-
-        switch (stage) {
-            case COMPLETED:
-                completed.add("onboarded");
-                completed.add("found_crafting_table");
-                completed.add("first_generation");
-                completed.add("reported_back");
+        List<Map.Entry<String, Integer>> top = new ArrayList<>(counts.entrySet());
+        top.sort(Map.Entry.<String, Integer>comparingByValue().reversed());
+        StringBuilder sb = new StringBuilder("[");
+        int emitted = 0;
+        for (Map.Entry<String, Integer> entry : top) {
+            if (emitted >= MAX_INVENTORY_LINES) {
                 break;
-            case FIRST_GENERATION:
-                completed.add("onboarded");
-                completed.add("found_crafting_table");
-                completed.add("first_generation");
-                remaining.add("report_back_to_josh");
-                break;
-            case LEARNING_PIPELINE:
-                completed.add("onboarded");
-                completed.add("found_crafting_table");
-                remaining.add("generate_first_video");
-                break;
-            case FLOW_INTRO:
-                completed.add("onboarded");
-                remaining.add("find_crafting_table");
-                remaining.add("generate_first_video");
-                break;
-            case NOT_STARTED:
-                remaining.add("talk_to_josh");
-                break;
-        }
-
-        q.add("objectives_completed", completed);
-        q.add("objectives_remaining", remaining);
-        q.addProperty("time_in_stage_minutes", 0); // Placeholder - would need stage timing
-
-        return q;
-    }
-
-    private static JsonObject collectWorld(ServerPlayerEntity player) {
-        JsonObject w = new JsonObject();
-        ServerWorld world = (ServerWorld) player.getWorld();
-
-        // Time of day
-        long timeOfDay = world.getTimeOfDay() % 24000;
-        String time;
-        if (timeOfDay < 6000) time = "morning";
-        else if (timeOfDay < 12000) time = "afternoon";
-        else if (timeOfDay < 18000) time = "evening";
-        else time = "night";
-        w.addProperty("time_of_day", time);
-
-        // Weather
-        String weather;
-        if (world.isThundering()) weather = "thunderstorm";
-        else if (world.isRaining()) weather = "rain";
-        else weather = "clear";
-        w.addProperty("weather", weather);
-
-        // Nearby entities (within 16 blocks)
-        Box searchBox = player.getBoundingBox().expand(16.0);
-        List<Entity> nearbyEntities = world.getOtherEntities(player, searchBox);
-        Map<String, Integer> entityCounts = new HashMap<>();
-        for (Entity entity : nearbyEntities) {
-            if (entity instanceof LivingEntity && !(entity instanceof JoshWoodwardEntity)) {
-                String name = Registries.ENTITY_TYPE.getId(entity.getType()).getPath();
-                entityCounts.merge(name, 1, Integer::sum);
             }
+            if (emitted++ > 0) {
+                sb.append(',');
+            }
+            sb.append('"').append(JsonLite.escape(entry.getKey() + " x" + entry.getValue())).append('"');
         }
-        JsonArray entities = new JsonArray();
-        for (Map.Entry<String, Integer> entry : entityCounts.entrySet()) {
-            entities.add(entry.getKey() + " x" + entry.getValue());
-        }
-        w.add("nearby_entities", entities);
+        return sb.append(']').toString();
+    }
 
-        // Nearby blocks of interest (simplified — checks for labscraft blocks in 8-block radius)
-        JsonArray blocks = new JsonArray();
-        BlockPos playerPos = player.getBlockPos();
-        for (int dx = -8; dx <= 8; dx++) {
-            for (int dy = -3; dy <= 3; dy++) {
-                for (int dz = -8; dz <= 8; dz++) {
-                    BlockPos checkPos = playerPos.add(dx, dy, dz);
-                    String blockId = Registries.BLOCK.getId(world.getBlockState(checkPos).getBlock()).toString();
-                    if (blockId.startsWith("labscraft:")) {
-                        blocks.add(blockId + " at " + checkPos.getX() + "," + checkPos.getY() + "," + checkPos.getZ());
+    private static String itemId(ItemStack stack) {
+        return Registries.ITEM.getId(stack.getItem()).toString();
+    }
+
+    private static String biomeId(ServerPlayerEntity player, ServerWorld world) {
+        return world.getBiome(player.getBlockPos()).getKey()
+                .map(key -> key.getValue().toString())
+                .orElse("minecraft:plains");
+    }
+
+    // ------------------------------------------------------------------
+    // josh
+    // ------------------------------------------------------------------
+
+    private static void appendJosh(StringBuilder sb, ServerPlayerEntity player, JoshWoodwardEntity josh) {
+        sb.append(",\"josh\":{\"position\":").append(position(josh.getX(), josh.getY(), josh.getZ()))
+                .append(",\"distance_to_player\":").append(oneDecimal(josh.distanceTo(player)))
+                .append(",\"current_activity\":\"").append(josh.getCurrentActivity()).append('"')
+                .append(",\"last_spoke_seconds_ago\":").append(josh.secondsSinceLastSpoke())
+                .append(",\"can_see_player\":").append(josh.canSee(player))
+                .append('}');
+    }
+
+    // ------------------------------------------------------------------
+    // world
+    // ------------------------------------------------------------------
+
+    private static void appendWorld(StringBuilder sb, ServerPlayerEntity player,
+            JoshWoodwardEntity josh, ServerWorld world) {
+        sb.append(",\"world\":{\"time_of_day\":\"").append(timeOfDay(world)).append('"')
+                .append(",\"weather\":\"").append(weather(world)).append('"')
+                .append(",\"nearby_entities\":").append(nearbyEntities(player, josh, world))
+                .append(",\"nearby_blocks_of_interest\":").append(nearbyBlocksOfInterest(player, world))
+                .append('}');
+    }
+
+    static String timeOfDayName(long timeOfDay) {
+        long t = timeOfDay % 24000L;
+        if (t < 0) {
+            t += 24000L;
+        }
+        if (t >= 23000L) {
+            return "sunrise";
+        }
+        if (t < 12000L) {
+            return "day";
+        }
+        if (t < 13500L) {
+            return "sunset";
+        }
+        return "night";
+    }
+
+    private static String timeOfDay(ServerWorld world) {
+        return timeOfDayName(world.getTimeOfDay());
+    }
+
+    private static String weather(ServerWorld world) {
+        if (world.isThundering()) {
+            return "thunder";
+        }
+        return world.isRaining() ? "rain" : "clear";
+    }
+
+    private static String nearbyEntities(ServerPlayerEntity player, JoshWoodwardEntity josh, ServerWorld world) {
+        Box box = player.getBoundingBox().expand(ENTITY_RADIUS);
+        List<Entity> entities = world.getOtherEntities(player, box,
+                e -> e != josh && e.isAlive() && !(e instanceof JoshWoodwardEntity));
+        entities.sort(Comparator.comparingDouble(player::distanceTo));
+        StringBuilder sb = new StringBuilder("[");
+        int emitted = 0;
+        for (Entity entity : entities) {
+            if (emitted >= MAX_NEARBY_ENTITIES) {
+                break;
+            }
+            double distance = player.distanceTo(entity);
+            if (distance > ENTITY_RADIUS) {
+                continue;
+            }
+            if (emitted++ > 0) {
+                sb.append(',');
+            }
+            sb.append('"')
+                    .append(JsonLite.escape(Registries.ENTITY_TYPE.getId(entity.getType()).toString()))
+                    .append('@').append(oneDecimal(distance)).append('"');
+        }
+        return sb.append(']').toString();
+    }
+
+    /**
+     * Scans a cube around the player for labscraft blocks of interest
+     * (ores, consoles, the crafting table) and reports the nearest instance of
+     * each id as {@code "id@distance"}.
+     */
+    private static String nearbyBlocksOfInterest(ServerPlayerEntity player, ServerWorld world) {
+        BlockPos center = player.getBlockPos();
+        Map<String, Double> nearestById = new LinkedHashMap<>();
+        BlockPos.Mutable pos = new BlockPos.Mutable();
+        for (int dx = -BLOCK_RADIUS; dx <= BLOCK_RADIUS; dx++) {
+            for (int dy = -BLOCK_RADIUS; dy <= BLOCK_RADIUS; dy++) {
+                for (int dz = -BLOCK_RADIUS; dz <= BLOCK_RADIUS; dz++) {
+                    pos.set(center.getX() + dx, center.getY() + dy, center.getZ() + dz);
+                    Block block = world.getBlockState(pos).getBlock();
+                    String id = Registries.BLOCK.getId(block).toString();
+                    if (!id.startsWith("labscraft:")) {
+                        continue;
                     }
+                    double distance = Math.sqrt(center.getSquaredDistance(pos));
+                    nearestById.merge(id, distance, Math::min);
                 }
             }
         }
-        w.add("nearby_blocks_of_interest", blocks);
+        StringBuilder sb = new StringBuilder("[");
+        boolean first = true;
+        for (Map.Entry<String, Double> entry : nearestById.entrySet()) {
+            if (!first) {
+                sb.append(',');
+            }
+            first = false;
+            sb.append('"').append(JsonLite.escape(entry.getKey()))
+                    .append('@').append(oneDecimal(entry.getValue())).append('"');
+        }
+        return sb.append(']').toString();
+    }
 
-        return w;
+    // ------------------------------------------------------------------
+    // recent_events
+    // ------------------------------------------------------------------
+
+    private static void appendRecentEvents(StringBuilder sb, List<RecentEventsTracker.Event> events, long nowMs) {
+        sb.append(",\"recent_events\":[");
+        boolean first = true;
+        for (RecentEventsTracker.Event event : events) {
+            if (!first) {
+                sb.append(',');
+            }
+            first = false;
+            sb.append("{\"type\":\"").append(JsonLite.escape(event.type()))
+                    .append("\",\"seconds_ago\":").append(event.secondsAgo(nowMs));
+            for (Map.Entry<String, String> field : event.fields().entrySet()) {
+                sb.append(",\"").append(JsonLite.escape(field.getKey()))
+                        .append("\":\"").append(JsonLite.escape(field.getValue())).append('"');
+            }
+            sb.append('}');
+        }
+        sb.append(']');
+    }
+
+    // ------------------------------------------------------------------
+    // formatting helpers
+    // ------------------------------------------------------------------
+
+    private static String position(double x, double y, double z) {
+        return "{\"x\":" + twoDecimals(x) + ",\"y\":" + twoDecimals(y) + ",\"z\":" + twoDecimals(z) + "}";
+    }
+
+    private static String oneDecimal(double value) {
+        return String.format(Locale.ROOT, "%.1f", value);
+    }
+
+    private static String twoDecimals(double value) {
+        return String.format(Locale.ROOT, "%.2f", value);
     }
 }

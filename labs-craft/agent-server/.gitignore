@@ -1,3 +1,10 @@
+# Dependencies / build output
 node_modules/
 dist/
-data/memory.db
+
+# Runtime state
+data/
+*.log
+
+# Local config with real API keys — never commit. Use config.example.json.
+config.json

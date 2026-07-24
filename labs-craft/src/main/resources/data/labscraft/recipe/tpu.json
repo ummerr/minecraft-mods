@@ -6,18 +6,9 @@
     "GRG"
   ],
   "key": {
-    "G": {
-      "item": "minecraft:gold_nugget"
-    },
-    "R": {
-      "item": "minecraft:redstone"
-    },
-    "I": {
-      "item": "minecraft:iron_ingot"
-    }
+    "G": "minecraft:gold_nugget",
+    "R": "minecraft:redstone",
+    "I": "minecraft:iron_ingot"
   },
-  "result": {
-    "id": "labscraft:tpu",
-    "count": 1
-  }
+  "result": { "id": "labscraft:tpu", "count": 1 }
 }

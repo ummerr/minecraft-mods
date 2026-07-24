@@ -1,30 +1,40 @@
 package com.labscraft.entity.client;
 
-import com.labscraft.LabsCraft;
 import com.labscraft.entity.JoshWoodwardEntity;
+import net.minecraft.client.render.entity.BipedEntityRenderer;
 import net.minecraft.client.render.entity.EntityRendererFactory;
-import net.minecraft.client.render.entity.MobEntityRenderer;
 import net.minecraft.client.render.entity.model.EntityModelLayers;
-import net.minecraft.client.render.entity.model.ZombieEntityModel;
-import net.minecraft.client.render.entity.state.ZombieEntityRenderState;
 import net.minecraft.util.Identifier;
 
-public class JoshWoodwardRenderer extends MobEntityRenderer<JoshWoodwardEntity, ZombieEntityRenderState, ZombieEntityModel<ZombieEntityRenderState>> {
+/**
+ * Renderer for Josh Woodward: a plain biped built from the zombie model layer
+ * (identical part layout to a player, no player-specific render state) wearing
+ * the default wide-arm player texture. Deliberately simple and working over
+ * fancy, per the v1 postmortem.
+ */
+public class JoshWoodwardRenderer
+        extends BipedEntityRenderer<JoshWoodwardEntity, JoshWoodwardRenderState, JoshWoodwardModel> {
 
-    // Skin texture - see resources/assets/labscraft/textures/entity/skins/README.md for format details
-    private static final Identifier TEXTURE = Identifier.of(LabsCraft.MOD_ID, "textures/entity/skins/josh_woodward.png");
+    private static final Identifier TEXTURE = Identifier.ofVanilla("textures/entity/player/wide/steve.png");
 
     public JoshWoodwardRenderer(EntityRendererFactory.Context context) {
-        super(context, new ZombieEntityModel<>(context.getPart(EntityModelLayers.ZOMBIE)), 0.5F);
+        super(context, new JoshWoodwardModel(context.getPart(EntityModelLayers.ZOMBIE)), 0.5f);
     }
 
     @Override
-    public ZombieEntityRenderState createRenderState() {
-        return new ZombieEntityRenderState();
-    }
-
-    @Override
-    public Identifier getTexture(ZombieEntityRenderState state) {
+    public Identifier getTexture(JoshWoodwardRenderState state) {
         return TEXTURE;
+    }
+
+    @Override
+    public JoshWoodwardRenderState createRenderState() {
+        return new JoshWoodwardRenderState();
+    }
+
+    @Override
+    public void updateRenderState(JoshWoodwardEntity entity, JoshWoodwardRenderState state, float tickDelta) {
+        super.updateRenderState(entity, state, tickDelta);
+        state.emote = entity.getEmoteTrackedValue();
+        state.emoteTime = entity.age + tickDelta;
     }
 }

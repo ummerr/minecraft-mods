@@ -1,7 +1,5 @@
 {
   "variants": {
-    "": {
-      "model": "labscraft:block/veo_console"
-    }
+    "": { "model": "labscraft:block/veo_console" }
   }
 }

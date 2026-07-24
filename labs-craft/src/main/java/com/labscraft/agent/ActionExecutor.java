@@ -1,154 +1,168 @@
 package com.labscraft.agent;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import com.labscraft.LabsCraft;
 import com.labscraft.entity.JoshWoodwardEntity;
-import com.labscraft.item.ModItems;
+import com.labscraft.quest.AdvanceResult;
+import com.labscraft.quest.ObjectiveCompletionResult;
 import com.labscraft.quest.QuestManager;
-import net.minecraft.entity.ItemEntity;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
-public class ActionExecutor {
+/**
+ * Validates and applies actions returned by the agent server.
+ *
+ * <p><b>Single clock (v1 defect #3 fix):</b> the executor owns no tick counter.
+ * {@link AgentBridge} increments ONE monotonic counter in
+ * {@code END_SERVER_TICK} and passes the same value to both
+ * {@link #submit} (schedule base) and {@link #onServerTick} (drain), so
+ * {@code delay_ticks} is honored exactly.</p>
+ *
+ * <p><b>Untrusted input (protocol rule 2):</b> every action goes through
+ * {@link ActionValidator} before scheduling; rejects are dropped individually
+ * and logged at debug. <b>Quest authority (rule 3):</b> ADVANCE_QUEST /
+ * COMPLETE_OBJECTIVE route through {@link QuestManager} and refusals are
+ * honored (logged at debug).</p>
+ *
+ * <p>All methods run on the server thread.</p>
+ */
+public final class ActionExecutor {
 
-    private record ScheduledAction(JsonObject action, int executeTick) {}
+    /** How far from the player we look for a Josh to act through. */
+    public static final double JOSH_SEARCH_RANGE = 64.0;
 
-    private final List<ScheduledAction> pendingActions = new ArrayList<>();
-    private int currentTick = 0;
+    private final ActionScheduler scheduler = new ActionScheduler();
+    private final AtomicLong executedCount = new AtomicLong();
 
-    public void scheduleActions(JsonArray actions, int baseTick) {
-        synchronized (pendingActions) {
-            for (JsonElement element : actions) {
-                JsonObject action = element.getAsJsonObject();
-                int delay = action.has("delay_ticks") ? action.get("delay_ticks").getAsInt() : 0;
-                pendingActions.add(new ScheduledAction(action, baseTick + delay));
+    /**
+     * Validates {@code actions} against {@code josh}'s position and schedules
+     * the survivors relative to {@code nowTick}. Returns how many were accepted.
+     */
+    public int submit(ServerPlayerEntity player, JoshWoodwardEntity josh,
+            List<AgentAction> actions, long nowTick) {
+        List<AgentAction> accepted = new ArrayList<>(actions.size());
+        for (AgentAction action : actions) {
+            Optional<String> rejection = ActionValidator.reject(action, josh.getX(), josh.getY(), josh.getZ());
+            if (rejection.isPresent()) {
+                LabsCraft.LOGGER.debug("[agent] dropped invalid action ({}): {}", rejection.get(), action);
+            } else {
+                accepted.add(action);
+            }
+        }
+        scheduler.schedule(player.getUuid(), accepted, nowTick);
+        return accepted.size();
+    }
+
+    /** Executes everything due at {@code nowTick} (same clock as {@link #submit}). */
+    public void onServerTick(MinecraftServer server, long nowTick) {
+        for (ActionScheduler.Scheduled scheduled : scheduler.drainDue(nowTick)) {
+            try {
+                execute(server, scheduled);
+            } catch (Exception e) {
+                LabsCraft.LOGGER.debug("[agent] action execution failed: {}", scheduled.action(), e);
             }
         }
     }
 
-    public void tick(JoshWoodwardEntity josh, ServerPlayerEntity player, ServerWorld world) {
-        currentTick++;
+    /** Lifetime count of actions actually executed (smoke-test diagnostic). */
+    public long executedCount() {
+        return executedCount.get();
+    }
 
-        List<ScheduledAction> toExecute = new ArrayList<>();
-        synchronized (pendingActions) {
-            var it = pendingActions.iterator();
-            while (it.hasNext()) {
-                ScheduledAction sa = it.next();
-                if (currentTick >= sa.executeTick()) {
-                    toExecute.add(sa);
-                    it.remove();
+    public int pendingCount() {
+        return scheduler.pending();
+    }
+
+    public void clear() {
+        scheduler.clear();
+    }
+
+    // ------------------------------------------------------------------
+    // Execution
+    // ------------------------------------------------------------------
+
+    private void execute(MinecraftServer server, ActionScheduler.Scheduled scheduled) {
+        ServerPlayerEntity player = server.getPlayerManager().getPlayer(scheduled.playerUuid());
+        if (player == null) {
+            return; // player logged off while the action was queued
+        }
+        JoshWoodwardEntity josh = findNearestJosh(player, JOSH_SEARCH_RANGE);
+        if (josh == null) {
+            return; // no Josh left near the player
+        }
+        AgentAction action = scheduled.action();
+        switch (action.type()) {
+            case "SAY" -> josh.say(action.text());
+            case "WALK_TO" -> {
+                if (action.targetPlayer()) {
+                    josh.walkTo(player.getX(), player.getY(), player.getZ(), action.speed());
+                } else {
+                    josh.walkTo(action.x(), action.y(), action.z(), action.speed());
                 }
             }
-        }
-
-        for (ScheduledAction sa : toExecute) {
-            executeAction(sa.action(), josh, player, world);
-        }
-    }
-
-    public boolean hasPendingActions() {
-        synchronized (pendingActions) {
-            return !pendingActions.isEmpty();
-        }
-    }
-
-    private void executeAction(JsonObject action, JoshWoodwardEntity josh,
-                               ServerPlayerEntity player, ServerWorld world) {
-        String type = action.get("type").getAsString();
-
-        switch (type) {
-            case "SAY" -> executeSay(action, player);
-            case "WALK_TO" -> executeWalkTo(action, josh);
-            case "EMOTE" -> executeEmote(action, josh, player);
-            case "GIVE_ITEM" -> executeGiveItem(action, player);
-            case "ADVANCE_QUEST" -> executeAdvanceQuest(player, world);
-            case "WAIT" -> {} // No-op
-            default -> LabsCraft.LOGGER.warn("[ActionExecutor] Unknown action type: {}", type);
-        }
-    }
-
-    private void executeSay(JsonObject action, ServerPlayerEntity player) {
-        String text = action.get("text").getAsString();
-        player.sendMessage(Text.literal("<Josh Woodward> " + text), false);
-    }
-
-    private void executeWalkTo(JsonObject action, JoshWoodwardEntity josh) {
-        // Support both explicit coords and "walk to player"
-        if (action.has("target") && action.get("target").getAsString().equals("player")) {
-            // Walk toward the nearest player
-            var world = josh.getWorld();
-            var nearest = world.getClosestPlayer(josh, 32.0);
-            if (nearest != null) {
-                josh.getNavigation().startMovingTo(
-                        nearest.getX(), nearest.getY(), nearest.getZ(), 0.6
-                );
+            case "LOOK_AT" -> {
+                if (action.targetPlayer()) {
+                    josh.lookAtEntity(player);
+                } else {
+                    josh.lookAtPosition(action.x(), action.y(), action.z());
+                }
             }
+            case "EMOTE" -> josh.playEmote(action.emote());
+            case "GIVE_ITEM" -> giveItem(player, action);
+            case "ADVANCE_QUEST" -> {
+                AdvanceResult result = QuestManager.requestAdvance(player);
+                if (!result.allowed()) {
+                    LabsCraft.LOGGER.debug("[agent] ADVANCE_QUEST refused by QuestManager: {}", result.reason());
+                }
+            }
+            case "COMPLETE_OBJECTIVE" -> {
+                ObjectiveCompletionResult result =
+                        QuestManager.requestCompleteObjective(player, action.objectiveId());
+                if (!result.allowed()) {
+                    LabsCraft.LOGGER.debug("[agent] COMPLETE_OBJECTIVE '{}' refused by QuestManager: {}",
+                            action.objectiveId(), result.reason());
+                }
+            }
+            case "WAIT" -> {
+                // Deliberate no-op.
+            }
+            default -> {
+                // Unreachable: validator only passes known types.
+            }
+        }
+        executedCount.incrementAndGet();
+    }
+
+    private static void giveItem(ServerPlayerEntity player, AgentAction action) {
+        Item item = Registries.ITEM.get(Identifier.of(action.item()));
+        if (item == Items.AIR) {
+            LabsCraft.LOGGER.debug("[agent] GIVE_ITEM resolved to air, skipping: {}", action.item());
             return;
         }
-
-        JsonObject pos = action.getAsJsonObject("position");
-        if (pos == null) return;
-
-        double x = pos.get("x").getAsDouble();
-        double y = pos.get("y").getAsDouble();
-        double z = pos.get("z").getAsDouble();
-
-        // Use pathfinding with a reasonable speed
-        boolean success = josh.getNavigation().startMovingTo(x, y, z, 0.6);
-        if (!success) {
-            LabsCraft.LOGGER.debug("[ActionExecutor] WALK_TO pathfinding failed to {},{},{}", x, y, z);
+        ItemStack stack = new ItemStack(item, action.quantity());
+        if (!player.giveItemStack(stack)) {
+            player.dropItem(stack, false);
         }
     }
 
-    private void executeEmote(JsonObject action, JoshWoodwardEntity josh, ServerPlayerEntity player) {
-        String emote = action.get("emote").getAsString();
-
-        // Emotes are visual feedback — for now, send as text action description
-        String emoteText = switch (emote) {
-            case "nod" -> "* Josh nods *";
-            case "shake_head" -> "* Josh shakes his head *";
-            case "shrug" -> "* Josh shrugs *";
-            case "point" -> "* Josh points *";
-            default -> "* Josh " + emote + " *";
-        };
-        player.sendMessage(Text.literal(emoteText), false);
-    }
-
-    private void executeGiveItem(JsonObject action, ServerPlayerEntity player) {
-        String itemId = action.get("item").getAsString();
-        int quantity = action.has("quantity") ? action.get("quantity").getAsInt() : 1;
-
-        // Support labscraft items by name
-        ItemStack stack;
-        if (itemId.equals("labscraft:tpu")) {
-            stack = new ItemStack(ModItems.TPU, quantity);
-        } else {
-            // Try registry lookup for other items
-            var item = Registries.ITEM.get(Identifier.of(itemId));
-            stack = new ItemStack(item, quantity);
-        }
-
-        if (!player.getInventory().insertStack(stack)) {
-            ItemEntity itemEntity = new ItemEntity(
-                    player.getWorld(),
-                    player.getX(), player.getY(), player.getZ(),
-                    stack
-            );
-            player.getWorld().spawnEntity(itemEntity);
-        }
-    }
-
-    private void executeAdvanceQuest(ServerPlayerEntity player, ServerWorld world) {
-        QuestManager questManager = QuestManager.get(world);
-        questManager.advanceStage(player);
+    /** Nearest Josh to {@code player} within {@code range} blocks, or null. */
+    public static JoshWoodwardEntity findNearestJosh(ServerPlayerEntity player, double range) {
+        return player.getServerWorld().getEntitiesByClass(
+                        JoshWoodwardEntity.class,
+                        player.getBoundingBox().expand(range),
+                        entity -> entity.isAlive())
+                .stream()
+                .min(Comparator.comparingDouble(player::squaredDistanceTo))
+                .orElse(null);
     }
 }

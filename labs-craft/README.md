@@ -1,265 +1,178 @@
 # LabsCraft
 
-A Minecraft Fabric mod (1.21.4) where you play as an APM intern at "Labs" learning to use Flow, an AI-powered image and video generation platform.
+A Minecraft Fabric mod (1.21.4) where you play as an APM intern at "Labs", learning to
+use Flow — an AI image and video generation platform. Your PM is Josh Woodward, an NPC
+backed by an LLM who perceives the world, reasons about it, and acts.
 
-## Overview
+**v2** is a ground-up rebuild. See [Rebuild notes](#rebuild-notes-v1--v2) for what changed and why.
 
-LabsCraft introduces a quest-driven gameplay experience centered around collecting TPUs (Tensor Processing Units) and building AI generation consoles. Meet Josh Woodward, your PM guide, and progress through the internship by crafting increasingly powerful generation hardware.
-
-## Custom Map
-
-LabsCraft includes an auto-generating Googleplex office campus built on a superflat world. On first world load, the mod generates a 200×200 block structure centered on the world spawn with:
-
-- **Lobby** with reception desk, Flow Crafting Table, and Josh Woodward NPC
-- **Flow Lab**, **Genie Lab**, and **Veo Lab** with their respective consoles
-- **Cafeteria**, **Server Room**, **Mine Entrance**, and exterior courtyard
-- **Superflat terrain**: bedrock → deepslate → stone → dirt → grass (65 blocks) with ore generation enabled for TPU mining
-
-The map generates automatically on first server start, or manually via `/labscraft build`. Generation is idempotent — restarting the server won't duplicate the structure.
-
-### Superflat World Preset
-
-For the intended experience, create a new world using the **LabsCraft Googleplex** superflat preset, which provides a clean flat terrain with underground ores for TPU mining.
-
-## Features
-
-### Agentic NPC System (v0.2.0)
-
-Josh Woodward is powered by an LLM-backed agent system. Instead of cycling through hardcoded dialogue, Josh perceives the game world, reasons about what to do, and generates dynamic responses in character.
-
-**How it works:**
-- A separate Node.js agent server receives world state from the Fabric mod every second
-- The server runs an agentic loop: perceive (world state) → decide (should Josh act?) → reason (LLM) → act (SAY, WALK_TO, EMOTE, GIVE_ITEM, ADVANCE_QUEST)
-- Josh remembers previous conversations across sessions (SQLite)
-- Josh proactively speaks when you're stuck, in danger, or idle near an objective
-- Conversation history is automatically summarized to manage context window
-
-**Supported LLM providers** (in priority order):
-1. Claude API (Sonnet 4.5) — best character consistency
-2. Gemini API (2.5 Flash) — fast alternative
-3. Ollama (local) — free, offline play
-4. Hardcoded fallback — works with no server running at all
-
-**Trigger system — Josh speaks when:**
-- You send a chat message near him
-- You right-click (interact with) him
-- You've been idle near a quest objective for too long
-- You complete a quest objective
-- You're in danger (low health + hostile mobs nearby)
-- You're standing close and he hasn't spoken in a while
-
-### NPCs
-
-**Josh Woodward**
-- Your PM guide who introduces you to Labs
-- Speaks in deadpan corporate jargon ("That's a P0 for Q1", "I have a hard stop in 30")
-- Gives TPU rewards at quest milestones
-- Invulnerable (he has meetings to attend)
-- With agent server: generates dynamic, context-aware dialogue via LLM
-- Without agent server: falls back to static dialogue seamlessly
-
-### Resources
-
-**TPU (Tensor Processing Unit)**
-- Core resource for building consoles
-- Obtain by:
-  - Mining TPU Ore (Y: -64 to 32, ~6 per vein, 8 veins/chunk)
-  - Crafting: Gold Nuggets + Redstone + Iron Ingot
-  - Quest rewards from Josh
-
-**TPU Ore**
-- Spawns in stone (Y > 0) and deepslate (Y < 0) variants
-- Drops 1-2 TPUs when mined (Fortune compatible)
-- Silk Touch returns the ore block
-
-### Blocks
-
-**Flow Crafting Table**
-- Custom crafting station for building consoles
-- Insert TPUs (up to 10 slots)
-- Craft Nano Banana Console (5 TPUs) or Veo Console (10 TPUs)
-- Recipe: Crafting Table + Iron Ingots + Redstone
-
-**Nano Banana Console**
-- Image generation console (yellow/gold themed)
-- Requires 5 TPUs to craft
-- Faster generation time (3 seconds)
-
-**Veo Console**
-- Video generation console (purple themed)
-- Requires 10 TPUs to craft
-- Standard generation time (5 seconds)
-
-**Flow Console** (Legacy)
-- Original video generation console
-- Still functional but superseded by the TPU-based system
-
-### Quest Progression
-
-1. **NOT_STARTED** - Find and interact with Josh Woodward
-2. **FLOW_INTRO** - Receive 5 TPUs, learn about the crafting system
-3. **LEARNING_PIPELINE** - Build a console and use it
-4. **FIRST_GENERATION** - Complete your first generation
-5. **COMPLETED** - Talk to Josh for 5 bonus TPUs, full access unlocked
-
-## Running the Agent Server
+## Quick start
 
 ```bash
-# 1. Set your API key (pick one)
-export ANTHROPIC_API_KEY="sk-ant-..."   # Claude
-export GEMINI_API_KEY="..."             # or Gemini
+# Build and run the game
+./gradlew build
+./gradlew runClient
 
-# 2. Start the agent server
+# Optional: run the agent server for LLM-driven Josh (separate terminal)
 cd agent-server
 npm install
 npm run dev
-
-# 3. Verify it's running
-curl http://localhost:3001/health
-# → {"status":"ok","version":"0.2.0","llm":"claude"}
-
-# 4. Start Minecraft with the mod — Josh will use the agent server automatically
 ```
 
-The mod works fine without the agent server running — Josh falls back to static dialogue.
+**The mod is fully playable with the agent server stopped.** Josh falls back to static,
+stage-aware dialogue and the entire quest line is completable. The agent server is an
+enhancement, not a dependency.
 
-## Recipes
+The server itself also works with **no API keys at all** — it ships a static provider
+that returns sensible in-character actions. Add a key to `agent-server/config.json`
+(copy `config.example.json`) or set `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` to get real
+LLM behavior.
 
-### TPU
-```
-G R G
-R I R
-G R G
+## Gameplay
 
-G = Gold Nugget, R = Redstone, I = Iron Ingot
-```
+Mine **TPU Ore** (below Y 32) → craft **TPUs** → build a **Flow Crafting Table** →
+assemble **consoles** → generate artifacts.
 
-### Flow Crafting Table
-```
-I R I
-R C R
-I R I
+| Console | Cost | Time | Produces |
+|---|---|---|---|
+| Flow Console | 1 TPU | 100 ticks | Flow Sketch |
+| Nano Banana Console | 1 TPU | 140 ticks | Generated Image |
+| Veo Console | 3 TPU | 200 ticks | Generated Video |
 
-I = Iron Ingot, R = Redstone, C = Crafting Table
-```
+Each artifact gets a distinct generated name, prompt, model, and seed in its lore.
 
-### Consoles
-Built in the Flow Crafting Table:
-- **Nano Banana Console**: 5 TPUs
-- **Veo Console**: 10 TPUs
+### Quest line
+
+Six stages, each with tracked objectives that advance from real game events. A stage
+completes only when its objectives are genuinely satisfied.
+
+| Stage | Objectives |
+|---|---|
+| Orientation Day | Meet Josh |
+| Compute Procurement | Mine 3 TPU Ore · Craft 2 TPU |
+| Infrastructure Buildout | Craft Flow Crafting Table · Craft Nano Banana Console |
+| First Launch | Generate an image · Demo it to Josh |
+| Scale to Video | Mine 5 TPU Ore · Craft Veo Console · Generate a video |
+| Return Offer | — |
 
 ### Commands
 
-**`/labscraft build`**
-- Generates the Googleplex office at the player's position
-- Spawns Josh Woodward NPC in the lobby
-- Marks the world as generated (prevents auto-gen duplication)
-- Requires operator permissions
-
-## Installation
-
-1. Install [Fabric Loader](https://fabricmc.net/) for Minecraft 1.21.4
-2. Install [Fabric API](https://modrinth.com/mod/fabric-api)
-3. Place the mod JAR in your `mods` folder
-
-## Development
-
-```bash
-# Build the mod
-./gradlew build
-
-# Run the client
-./gradlew runClient
-
-# Run tests (174+ unit tests)
-./gradlew test
-
-# Run the agent server (separate terminal)
-cd agent-server && npm run dev
 ```
+/labscraft quest                                  # status
+/labscraft quest set|advance|reset                # op 2; advance goes through validation
+/labscraft josh spawn|emote <e>|say <text>        # op 2
+/labscraft googleplex generate <x> <y> <z> [seed] [force]
+/labscraft googleplex info
+```
+
+`/labscraft googleplex generate` builds the Labs office: lobby, meeting room with a glass
+wall, micro-kitchen, open-plan desk pods, and a Flow Lab pre-stocked with all three
+consoles and a crafting table. It refuses to overwrite player builds unless you pass `force`.
+
+The office also builds itself automatically: on a world's first server start the mod
+places it entrance-aligned with the world spawn, spawns Josh in the lobby, and moves the
+spawn point into the doorway. A persistent world flag makes this a one-time event, and
+the auto-run uses the same position-hash seed as the command. A superflat preset
+(`labscraft_googleplex`) is included for a clean campus site.
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────┐
-│          Minecraft (Fabric 1.21.4)       │
-│                                          │
-│  JoshWoodwardEntity ◄──► AgentBridge     │
-│       │                    │             │
-│  WorldStateCollector   ActionExecutor    │
-│       │                    ▲             │
-└───────┼────────────────────┼─────────────┘
-        │ HTTP POST          │ JSON actions
-        ▼                    │
-┌──────────────────────────────────────────┐
-│        Agent Server (Node.js)            │
-│                                          │
-│  triggers.ts → context.ts → LLM → parse │
-│       │                                  │
-│  memory.ts    summarizer.ts    SQLite    │
-└──────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│           Minecraft (Fabric 1.21.4)          │
+│                                              │
+│  JoshWoodwardEntity ◄──► AgentBridge         │
+│         │                    │               │
+│  WorldStateCollector    ActionExecutor       │
+│         │                    ▲               │
+│  QuestManager  ◄─ authority ─┘               │
+└─────────┼────────────────────┼───────────────┘
+          │ POST /tick         │ validated actions
+          ▼                    │
+┌──────────────────────────────────────────────┐
+│           Agent Server (Node + TS)           │
+│                                              │
+│  triggers → prompt → LLM (tool-call) → actions│
+│      │                                       │
+│  memory.ts   summarizer   SQLite             │
+└──────────────────────────────────────────────┘
 ```
 
-### Testing
+Providers are tried in order: **Claude → Gemini → Ollama → static fallback**.
 
-The project includes 174+ unit tests using JUnit 5 and Mockito. Tests use pure-Java logic mirrors to avoid Minecraft class bootstrap dependencies, enabling fast isolated testing of:
+### Design rules
 
-- Quest stage transitions and serialization
-- Crafting table TPU counting and cost validation
-- Console generation state machines
-- Googleplex structural layout and room positioning
-- Auto-generation origin math and spawn positions
-- Persistent state tracking
+These are enforced, not aspirational:
 
-## File Structure
+1. **The mod never depends on the server.** Connection refused, timeout, malformed JSON,
+   or a protocol mismatch all degrade silently to static dialogue. Logged once on
+   transition, never per-poll.
+2. **The LLM is untrusted input.** Every action is validated before execution — unknown
+   types, non-allowlisted items, out-of-range quantities, absurd coordinates, and
+   over-length messages are dropped individually while the rest still run.
+3. **The quest system is the authority.** `ADVANCE_QUEST` is a *request*. An LLM cannot
+   skip the player ahead; refusals name the unmet objectives.
+4. **Nothing blocks the game thread.** Polling is async, once per second per player.
 
-```
-src/main/java/com/labscraft/
-├── LabsCraft.java              # Main mod initializer
-├── LabsCraftClient.java        # Client-side initialization
-├── agent/                      # Agentic NPC bridge
-│   ├── AgentBridge.java        # Async HTTP client to agent server
-│   ├── AgentConfig.java        # Config loader
-│   ├── WorldStateCollector.java # Gathers world state for agent
-│   ├── ActionExecutor.java     # Executes agent actions in-game
-│   ├── RecentEventsTracker.java # Captures events between ticks
-│   └── ChatListener.java       # Server chat → agent events
-├── block/                      # Block classes
-├── block/entity/               # Block entities
-├── command/                    # Commands (/labscraft build)
-├── entity/                     # Entity classes (Josh Woodward)
-├── item/                       # Items (TPU, spawn eggs)
-├── network/                    # Client-server packets
-├── quest/                      # Quest system
-├── screen/                     # GUI screens and handlers
-└── world/                      # World generation, Googleplex map
-    ├── GoogleplexGenerator.java      # 200×200 structure builder
-    ├── GoogleplexAutoGenerator.java  # First-load auto-generation
-    └── GoogleplexState.java          # Persistent generation state
+The wire contract lives in `PROTOCOL-V2` and both halves implement it independently.
 
-agent-server/
-├── src/
-│   ├── index.ts                # Express server + tick endpoint
-│   ├── types.ts                # WorldState, AgentAction types
-│   ├── config.ts               # Config loader
-│   ├── database.ts             # SQLite setup
-│   ├── context.ts              # LLM context builder
-│   ├── triggers.ts             # should_respond() logic
-│   ├── memory.ts               # Memory extraction
-│   ├── summarizer.ts           # Conversation compression
-│   ├── llm/
-│   │   ├── provider.ts         # Abstract LLM interface
-│   │   ├── claude.ts           # Claude API provider
-│   │   ├── gemini.ts           # Gemini API provider
-│   │   └── ollama.ts           # Ollama local provider
-│   └── prompts/
-│       └── josh.ts             # Josh's system prompt
-├── config.json                 # Server configuration
-└── data/
-    └── memory.db               # SQLite (created at runtime)
+## Testing
+
+163 JVM tests + 51 agent-server tests.
+
+```bash
+./gradlew test                      # mod
+cd agent-server && npm test         # server
 ```
 
-## Credits
+Minecraft's test classpath isn't remapped, so game logic lives in pure-Java layers
+(`com.labscraft.logic`, `com.labscraft.quest`'s state machine, `com.labscraft.agent`'s
+validation/scheduling, `...world.structure.plan`) with thin Minecraft-facing wrappers.
+That split is what makes the coverage meaningful rather than decorative.
 
-- Mod created for Minecraft Montreal
-- Built with Fabric API 0.110.5 for Minecraft 1.21.4
+There are also env-gated runtime harnesses that drive a fake player through real server
+code paths:
+
+```bash
+LABSCRAFT_SMOKETEST=true ./gradlew runServer        # quest line end to end
+LABSCRAFT_AGENT_SMOKETEST=true ./gradlew runServer  # chat → POST /tick → SAY
+```
+
+## Rebuild notes (v1 → v2)
+
+v1 was deleted and rebuilt from a spec. Full accounting — approach, system map, token
+costs, and an honest read of what the numbers do and don't prove — is in
+**[docs/REBUILD.md](docs/REBUILD.md)**.
+
+Headline: **6,785 → 12,105 LOC, 148 → 214 tests, 10 defects fixed, ~100 minutes**, built
+by 7 parallel agents against a frozen wire contract, integrating with zero breaking
+mismatches.
+
+The rebuild targeted specific defects that made the core loop hollow:
+
+- **Consoles produced nothing.** v1 ran a 100-tick progress bar and incremented a
+  counter. No item, no reward. Now they consume TPU and emit real artifacts.
+- **Quest objectives were fiction.** The wire type carried `objectives_completed` /
+  `objectives_remaining` and the "player is stuck" trigger read them — but nothing ever
+  populated them. Now they're first-class and event-driven.
+- **The quest could not be finished.** `FIRST_GENERATION` was unreachable: the advance
+  hook was an empty `if` block containing only a comment.
+- **Ore dropped nothing.** Ores called `requiresTool()` but the mod shipped no block
+  tags, so mining them yielded no items.
+- **`delay_ticks` was unreliable.** Two unrelated clocks — a caller-supplied base tick
+  and a private counter. Now one monotonic tick source.
+- **LLM output was hand-parsed prose.** Now structured tool-calling with a schema.
+- **Trigger state leaked.** Module-global maps keyed by player *name*, never evicted.
+  Now UUID-keyed with TTL eviction and session-change reset.
+- **A mixin config was declared with no mixins.** Now exactly one mixin, and it's used —
+  Fabric ships no crafting event, so crafting detection needs it.
+
+Also new in v2: a sixth quest stage (`Scale to Video`), real emote animations instead of
+italic chat text, console screens using vanilla button clicks instead of four custom
+packet classes, and a Googleplex generator built on a validated blueprint layer
+(non-overlap, sealed shell, BFS reachability of every room).
+
+## Requirements
+
+- Java 21 · Minecraft 1.21.4 · Fabric Loader 0.16.9 · Fabric API 0.110.5
+- Node 22+ for the agent server (optional)

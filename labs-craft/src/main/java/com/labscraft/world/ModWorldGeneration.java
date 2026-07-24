@@ -9,20 +9,25 @@ import net.minecraft.util.Identifier;
 import net.minecraft.world.gen.GenerationStep;
 import net.minecraft.world.gen.feature.PlacedFeature;
 
-public class ModWorldGeneration {
+/**
+ * TPU ore generation: Y -64..32 (trapezoid), vein size ~6, 8 veins per chunk.
+ * The configured/placed features live in
+ * {@code data/labscraft/worldgen/(configured|placed)_feature/tpu_ore.json}.
+ */
+public final class ModWorldGeneration {
+    private ModWorldGeneration() {
+    }
+
     public static final RegistryKey<PlacedFeature> TPU_ORE_PLACED_KEY = RegistryKey.of(
         RegistryKeys.PLACED_FEATURE,
-        Identifier.of(LabsCraft.MOD_ID, "tpu_ore")
-    );
+        Identifier.of(LabsCraft.MOD_ID, "tpu_ore"));
 
     public static void registerWorldGeneration() {
-        LabsCraft.LOGGER.info("Registering world generation for " + LabsCraft.MOD_ID);
+        LabsCraft.LOGGER.info("Registering world generation for {}", LabsCraft.MOD_ID);
 
-        // Add TPU ore to all overworld biomes
         BiomeModifications.addFeature(
             BiomeSelectors.foundInOverworld(),
             GenerationStep.Feature.UNDERGROUND_ORES,
-            TPU_ORE_PLACED_KEY
-        );
+            TPU_ORE_PLACED_KEY);
     }
 }

@@ -1,26 +1,30 @@
 {
   "name": "labscraft-agent-server",
-  "version": "0.1.0",
-  "description": "Agentic NPC server for LabsCraft",
+  "version": "2.0.0",
+  "private": true,
+  "description": "LabsCraft v2 agent server - LLM-backed brain for Josh Woodward (protocol v2)",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "ts-node src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.74.0",
-    "@google/genai": "^1.41.0",
-    "better-sqlite3": "^11.7.0",
-    "cors": "^2.8.5",
-    "express": "^4.21.0"
+    "@anthropic-ai/sdk": "^0.114.0",
+    "@google/genai": "^2.13.0",
+    "better-sqlite3": "^11.10.0",
+    "express": "^4.22.2"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.12",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.10.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.7.0"
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^4.17.25",
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
   }
 }

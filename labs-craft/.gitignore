@@ -12,6 +12,7 @@ build/
 
 # Runtime
 run/
+run-server/
 logs/
 
 # OS

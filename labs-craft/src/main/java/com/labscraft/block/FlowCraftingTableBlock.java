@@ -1,7 +1,6 @@
 package com.labscraft.block;
 
 import com.labscraft.block.entity.FlowCraftingTableBlockEntity;
-import com.labscraft.block.entity.ModBlockEntities;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
@@ -9,6 +8,7 @@ import net.minecraft.block.BlockWithEntity;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.ActionResult;
+import net.minecraft.util.ItemScatterer;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -41,10 +41,20 @@ public class FlowCraftingTableBlock extends BlockWithEntity {
     protected ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player, BlockHitResult hit) {
         if (!world.isClient) {
             BlockEntity blockEntity = world.getBlockEntity(pos);
-            if (blockEntity instanceof FlowCraftingTableBlockEntity craftingEntity) {
-                player.openHandledScreen(craftingEntity);
+            if (blockEntity instanceof FlowCraftingTableBlockEntity table) {
+                player.openHandledScreen(table);
             }
         }
         return ActionResult.SUCCESS;
+    }
+
+    @Override
+    protected void onStateReplaced(BlockState state, World world, BlockPos pos, BlockState newState, boolean moved) {
+        if (!state.isOf(newState.getBlock())) {
+            if (world.getBlockEntity(pos) instanceof FlowCraftingTableBlockEntity table) {
+                ItemScatterer.spawn(world, pos, table);
+            }
+        }
+        super.onStateReplaced(state, world, pos, newState, moved);
     }
 }

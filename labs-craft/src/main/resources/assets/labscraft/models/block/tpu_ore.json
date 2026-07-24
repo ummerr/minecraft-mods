@@ -1,6 +1,4 @@
 {
   "parent": "minecraft:block/cube_all",
-  "textures": {
-    "all": "labscraft:block/tpu_ore"
-  }
+  "textures": { "all": "labscraft:block/tpu_ore" }
 }

@@ -1,7 +1,5 @@
 {
   "variants": {
-    "": {
-      "model": "labscraft:block/deepslate_tpu_ore"
-    }
+    "": { "model": "labscraft:block/deepslate_tpu_ore" }
   }
 }

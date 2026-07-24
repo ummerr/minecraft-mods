@@ -1,58 +1,69 @@
 package com.labscraft.agent;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
-public class RecentEventsTracker {
+/**
+ * Per-player buffer of PROTOCOL-V2 {@code recent_events} accumulated between
+ * polls. Bounded (oldest dropped first), keyed by player UUID (never name),
+ * cleared per send via {@link #drain}. Pure Java; thread-safe because chat
+ * events and the poll loop may race in edge cases.
+ */
+public final class RecentEventsTracker {
 
-    private final List<JsonObject> events = new ArrayList<>();
-    private final long createdAt = System.currentTimeMillis();
+    /** Max buffered events per player between polls. */
+    public static final int MAX_EVENTS_PER_PLAYER = 32;
 
-    public synchronized void addChatMessage(String from, String text) {
-        JsonObject event = new JsonObject();
-        event.addProperty("type", "chat_message");
-        event.addProperty("from", from);
-        event.addProperty("text", text);
-        event.addProperty("ago_seconds", elapsedSeconds());
-        events.add(event);
-    }
+    /** Max tracked players (safety valve; server player counts are far lower). */
+    public static final int MAX_PLAYERS = 128;
 
-    public synchronized void addInteraction(String playerName) {
-        JsonObject event = new JsonObject();
-        event.addProperty("type", "interaction");
-        event.addProperty("from", playerName);
-        event.addProperty("ago_seconds", elapsedSeconds());
-        events.add(event);
-    }
+    /**
+     * One buffered event. {@code fields} holds the type-specific extras
+     * ({@code text}, {@code block}, {@code item}, {@code from}, {@code to}).
+     */
+    public record Event(String type, long atMs, Map<String, String> fields) {
 
-    public synchronized void addBlockBroken(String blockName) {
-        JsonObject event = new JsonObject();
-        event.addProperty("type", "block_broken");
-        event.addProperty("block", blockName);
-        event.addProperty("ago_seconds", elapsedSeconds());
-        events.add(event);
-    }
-
-    public synchronized JsonArray drain() {
-        JsonArray array = new JsonArray();
-        long now = System.currentTimeMillis();
-        for (JsonObject event : events) {
-            // Recalculate ago_seconds at drain time
-            event.addProperty("ago_seconds", (now - createdAt) / 1000);
-            array.add(event);
+        public long secondsAgo(long nowMs) {
+            return Math.max(0, (nowMs - atMs) / 1000);
         }
-        events.clear();
-        return array;
     }
 
-    public synchronized boolean hasEvents() {
-        return !events.isEmpty();
+    private final Map<UUID, ArrayDeque<Event>> byPlayer = new HashMap<>();
+
+    public synchronized void record(UUID playerUuid, String type, Map<String, String> fields, long nowMs) {
+        if (playerUuid == null || type == null) {
+            return;
+        }
+        if (!byPlayer.containsKey(playerUuid) && byPlayer.size() >= MAX_PLAYERS) {
+            return;
+        }
+        ArrayDeque<Event> buffer = byPlayer.computeIfAbsent(playerUuid, k -> new ArrayDeque<>());
+        while (buffer.size() >= MAX_EVENTS_PER_PLAYER) {
+            buffer.pollFirst();
+        }
+        buffer.addLast(new Event(type, nowMs, fields == null ? Map.of() : Map.copyOf(fields)));
     }
 
-    private long elapsedSeconds() {
-        return (System.currentTimeMillis() - createdAt) / 1000;
+    /** Returns and clears the player's buffered events (oldest first). */
+    public synchronized List<Event> drain(UUID playerUuid) {
+        ArrayDeque<Event> buffer = byPlayer.remove(playerUuid);
+        return buffer == null ? List.of() : new ArrayList<>(buffer);
+    }
+
+    public synchronized int bufferedCount(UUID playerUuid) {
+        ArrayDeque<Event> buffer = byPlayer.get(playerUuid);
+        return buffer == null ? 0 : buffer.size();
+    }
+
+    public synchronized void clear(UUID playerUuid) {
+        byPlayer.remove(playerUuid);
+    }
+
+    public synchronized void clearAll() {
+        byPlayer.clear();
     }
 }
