@@ -13,6 +13,7 @@ import com.labscraft.item.ModItemGroups;
 import com.labscraft.item.ModItems;
 import com.labscraft.quest.QuestManager;
 import com.labscraft.screen.ModScreenHandlers;
+import com.labscraft.world.GoogleplexAutoGenerator;
 import com.labscraft.world.ModWorldGeneration;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
@@ -42,6 +43,7 @@ public class LabsCraft implements ModInitializer {
 		QuestIntegration.register();
 		JoshCommands.register();
 		GoogleplexCommands.register();
+		GoogleplexAutoGenerator.register();
 		AgentBridge.register();
 
 		// Env-gated integration harnesses; inert unless LABSCRAFT_*_SMOKETEST is set.

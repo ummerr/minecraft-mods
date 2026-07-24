@@ -69,6 +69,12 @@ completes only when its objectives are genuinely satisfied.
 wall, micro-kitchen, open-plan desk pods, and a Flow Lab pre-stocked with all three
 consoles and a crafting table. It refuses to overwrite player builds unless you pass `force`.
 
+The office also builds itself automatically: on a world's first server start the mod
+places it entrance-aligned with the world spawn, spawns Josh in the lobby, and moves the
+spawn point into the doorway. A persistent world flag makes this a one-time event, and
+the auto-run uses the same position-hash seed as the command. A superflat preset
+(`labscraft_googleplex`) is included for a clean campus site.
+
 ## Architecture
 
 ```

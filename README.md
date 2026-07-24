@@ -1,8 +1,21 @@
 # Minecraft Mods Collection
 
-A collection of custom Minecraft mods built with Minecraft Forge.
+A collection of custom Minecraft mods.
 
 ## Mods
+
+### [LabsCraft](./labs-craft/)
+
+A Fabric mod (1.21.4) where you play as an APM intern at "Labs" learning to use Flow, an AI-powered generation platform. Features an auto-generating Googleplex office campus on a superflat world, quest-driven progression with NPC guide Josh Woodward, TPU resource mining, and AI console crafting.
+
+**Key Features:**
+- Auto-generating Googleplex office (blueprint-validated: lobby, meeting room, micro-kitchen, desk pods, Flow Lab)
+- Six-stage quest system with TPU rewards and AI console crafting
+- Superflat world preset with ore generation for TPU mining
+- LLM-backed Josh Woodward NPC via a TypeScript agent server (protocol v2)
+- 214 unit tests (163 Java + 51 agent server)
+
+[See the LabsCraft README for full details →](./labs-craft/README.md)
 
 ### [MTL Memories](./montreal-mod/)
 
@@ -17,9 +30,10 @@ A Minecraft mod celebrating Montreal and McGill University memories from 2004-20
 
 ## Requirements
 
-- Java 17
-- Minecraft 1.20.1
-- Forge 47.4.10
+| Mod | Minecraft | Loader | Java |
+|-----|-----------|--------|------|
+| LabsCraft | 1.21.4 | Fabric | 21 |
+| MTL Memories | 1.20.1 | Forge | 17 |
 
 ## Quick Start
 
