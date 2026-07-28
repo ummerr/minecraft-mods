@@ -3,6 +3,7 @@ package com.sportscraft;
 import com.sportscraft.command.SportsCommands;
 import com.sportscraft.entity.ModEntities;
 import com.sportscraft.game.GolfManager;
+import com.sportscraft.integration.SportsSmokeTest;
 import com.sportscraft.item.ModItems;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
@@ -23,6 +24,9 @@ public class SportsCraft implements ModInitializer {
 		ModEntities.registerEntities();
 		GolfManager.register();
 		SportsCommands.register();
+
+		// Env-gated harness; inert unless SPORTSCRAFT_SMOKETEST=true.
+		SportsSmokeTest.register();
 
 		LOGGER.info("SportsCraft initialized");
 	}
