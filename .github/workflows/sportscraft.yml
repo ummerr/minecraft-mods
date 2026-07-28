@@ -1,0 +1,52 @@
+name: SportsCraft CI
+
+on:
+  push:
+    branches: [main, fable-rebuild]
+    paths: ['sports-craft/**', '.github/workflows/sportscraft.yml']
+  pull_request:
+    paths: ['sports-craft/**', '.github/workflows/sportscraft.yml']
+  # Lets the build be run on a topic branch without opening a PR first.
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mod:
+    name: Fabric mod (Java 21)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sports-craft
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # gradle.properties pins org.gradle.java.home to a local Homebrew JDK.
+      # That path does not exist on CI, so let the runner's JDK win.
+      - name: Unpin local JDK path
+        run: sed -i '/^org\.gradle\.java\.home=/d' gradle.properties
+
+      - name: Build and test
+        run: ./gradlew build --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mod-jar
+          path: sports-craft/build/libs/*.jar
+          if-no-files-found: warn
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: gradle-test-reports
+          path: sports-craft/build/reports/tests/
