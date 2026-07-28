@@ -1,0 +1,9 @@
+{
+	"mod.sportscraft.name": "SportsCraft",
+
+	"item.sportscraft.golf_ball": "Golf Ball",
+
+	"entity.sportscraft.sports_ball": "Sports Ball",
+
+	"commands.sportscraft.info.header": "SportsCraft — Wii-Sports-style minigames."
+}
