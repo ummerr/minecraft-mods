@@ -1,0 +1,14 @@
+{
+	"mod.sportscraft.name": "SportsCraft",
+
+	"item.sportscraft.golf_ball": "Golf Ball",
+	"item.sportscraft.driver": "Driver",
+	"item.sportscraft.iron": "Iron",
+	"item.sportscraft.putter": "Putter",
+
+	"entity.sportscraft.sports_ball": "Sports Ball",
+
+	"tooltip.sportscraft.driver": "Long and low. Hold to charge, release to swing.",
+	"tooltip.sportscraft.iron": "High and short. Good out of the rough.",
+	"tooltip.sportscraft.putter": "Keeps the ball on the ground. Use it on the green."
+}

@@ -1,0 +1,26 @@
+{
+	"schemaVersion": 1,
+	"id": "sportscraft",
+	"version": "${version}",
+	"name": "SportsCraft",
+	"description": "Wii-Sports-style minigames in Minecraft. Golf first: charge-and-release swings, auto-generated holes, and a real scorecard.",
+	"authors": [
+		"ummerr"
+	],
+	"license": "MIT",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.sportscraft.SportsCraft"
+		],
+		"client": [
+			"com.sportscraft.SportsCraftClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.16.9",
+		"fabric-api": "*",
+		"minecraft": "~1.21.4",
+		"java": ">=21"
+	}
+}
