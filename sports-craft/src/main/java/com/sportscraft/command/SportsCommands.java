@@ -5,6 +5,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.sportscraft.SportsCraft;
 import com.sportscraft.core.golf.GolfHoleDef;
+import com.sportscraft.core.golf.GolfRound;
 import com.sportscraft.core.physics.BallSpec;
 import com.sportscraft.core.physics.Vec3c;
 import com.sportscraft.core.swing.ClubSpec;
@@ -48,6 +49,15 @@ public final class SportsCommands {
                 dispatcher.register(CommandManager.literal("sports")
                         .then(CommandManager.literal("info")
                                 .executes(SportsCommands::info))
+                        .then(CommandManager.literal("golf")
+                                .then(CommandManager.literal("start")
+                                        .executes(SportsCommands::golfStart))
+                                .then(CommandManager.literal("status")
+                                        .executes(SportsCommands::golfStatus))
+                                .then(CommandManager.literal("quit")
+                                        .executes(SportsCommands::golfQuit))
+                                .then(CommandManager.literal("drop")
+                                        .executes(SportsCommands::golfDrop)))
                         .then(CommandManager.literal("build")
                                 .requires(source -> source.hasPermissionLevel(2))
                                 .then(CommandManager.literal("golf")
@@ -121,6 +131,73 @@ public final class SportsCommands {
                         + result.foundationBlocks() + " foundation, "
                         + result.clearedAbove() + " cleared, " + millis + " ms")
                         .formatted(Formatting.GRAY)), true);
+        return 1;
+    }
+
+    // ------------------------------------------------------------------
+    // golf
+    // ------------------------------------------------------------------
+
+    private static int golfStart(CommandContext<ServerCommandSource> context)
+            throws CommandSyntaxException {
+        ServerCommandSource source = context.getSource();
+        ServerPlayerEntity player = source.getPlayerOrThrow();
+
+        if (GolfManager.roundOf(player) != null) {
+            source.sendError(Text.literal("You are already playing. /sports golf quit to abandon it."));
+            return 0;
+        }
+        GolfRound round = GolfManager.startRound(player);
+        if (round == null) {
+            source.sendError(Text.literal("No hole nearby. Stand near a tee, "
+                    + "or build one with /sports build golf <pos>."));
+            return 0;
+        }
+        return 1;
+    }
+
+    private static int golfStatus(CommandContext<ServerCommandSource> context)
+            throws CommandSyntaxException {
+        ServerCommandSource source = context.getSource();
+        ServerPlayerEntity player = source.getPlayerOrThrow();
+
+        GolfRound round = GolfManager.roundOf(player);
+        if (round == null) {
+            source.sendFeedback(() -> Text.literal("No round in progress. /sports golf start to play.")
+                    .formatted(Formatting.GRAY), false);
+            return 0;
+        }
+        double toGo = round.hole().horizontalDistanceToCup(player.getX(), player.getZ());
+        source.sendFeedback(() -> Text.literal("Par " + round.par()
+                        + "  ·  stroke " + round.strokes()
+                        + (round.penalties() > 0 ? " (" + round.penalties() + " penalty)" : "")
+                        + "  ·  " + (int) Math.round(toGo) + " blocks to the pin"
+                        + "  ·  " + round.phase()).formatted(Formatting.GOLD), false);
+        return 1;
+    }
+
+    private static int golfQuit(CommandContext<ServerCommandSource> context)
+            throws CommandSyntaxException {
+        ServerCommandSource source = context.getSource();
+        ServerPlayerEntity player = source.getPlayerOrThrow();
+
+        if (GolfManager.quitRound(player) == null) {
+            source.sendError(Text.literal("No round in progress."));
+            return 0;
+        }
+        return 1;
+    }
+
+    private static int golfDrop(CommandContext<ServerCommandSource> context)
+            throws CommandSyntaxException {
+        ServerCommandSource source = context.getSource();
+        ServerPlayerEntity player = source.getPlayerOrThrow();
+
+        if (!GolfManager.dropBall(player)) {
+            source.sendError(Text.literal("Could not drop a ball here."));
+            return 0;
+        }
+        source.sendFeedback(() -> Text.literal("Ball dropped.").formatted(Formatting.GREEN), false);
         return 1;
     }
 

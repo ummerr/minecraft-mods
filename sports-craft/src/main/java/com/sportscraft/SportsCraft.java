@@ -2,6 +2,7 @@ package com.sportscraft;
 
 import com.sportscraft.command.SportsCommands;
 import com.sportscraft.entity.ModEntities;
+import com.sportscraft.game.GolfManager;
 import com.sportscraft.item.ModItems;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
@@ -20,6 +21,7 @@ public class SportsCraft implements ModInitializer {
 	public void onInitialize() {
 		ModItems.registerItems();
 		ModEntities.registerEntities();
+		GolfManager.register();
 		SportsCommands.register();
 
 		LOGGER.info("SportsCraft initialized");
